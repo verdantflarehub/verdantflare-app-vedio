@@ -1,0 +1,68 @@
+apiVersion: bcc.bd-apaas.com/v1alpha1
+kind: IngressHost
+metadata:
+  name: vedio-mcp
+spec:
+  host: mcp.cn-chengdu.bc-cloud.com
+---
+apiVersion: bcc.bd-apaas.com/v1alpha1
+kind: Middleware
+metadata:
+  name: vedio-mcp-path
+spec:
+  replacePath:
+    path: /mcp
+---
+apiVersion: bcc.bd-apaas.com/v1alpha1
+kind: Middleware
+metadata:
+  name: vedio-mcp-artifacts-prefix
+spec:
+  stripPrefix:
+    prefixes:
+      - /video
+---
+apiVersion: bcc.bd-apaas.com/v1alpha1
+kind: Middleware
+metadata:
+  name: vedio-mcp-security-headers
+spec:
+  headers:
+    allowedHosts:
+      - mcp.cn-chengdu.bc-cloud.com
+    contentTypeNosniff: true
+    forceSTSHeader: true
+    stsSeconds: 31536000
+---
+apiVersion: bcc.bd-apaas.com/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vedio-mcp
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`mcp.cn-chengdu.bc-cloud.com`) && (Path(`/video`) || Path(`/video/`))
+      priority: 200
+      middlewares:
+        - name: vedio-mcp-path
+        - name: vedio-mcp-security-headers
+      services:
+        - name: vedio-mcp-server
+          port: 8000
+          responseForwarding:
+            flushInterval: 100ms
+    - kind: Rule
+      match: Host(`mcp.cn-chengdu.bc-cloud.com`) && PathPrefix(`/video/artifacts/`)
+      priority: 300
+      middlewares:
+        - name: vedio-mcp-artifacts-prefix
+        - name: vedio-mcp-security-headers
+      services:
+        - name: vedio-mcp-server
+          port: 8000
+          responseForwarding:
+            flushInterval: 100ms
+  tls:
+    certResolver: default
