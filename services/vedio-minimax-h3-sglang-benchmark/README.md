@@ -4,6 +4,8 @@ Single-RTX-4090 MiniMax H3 Ref2VA benchmark using SGLang's official consumer
 GPU execution path. This is an offline benchmark image, not a second product
 API and not a ComfyUI installation.
 
+The migrated build and every published service image use the `vedio-` engineering prefix.
+
 ## Locked runtime
 
 | Component | Version |
