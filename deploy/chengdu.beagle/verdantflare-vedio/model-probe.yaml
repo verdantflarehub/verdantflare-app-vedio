@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vedio-h3-model-probe
+  namespace: verdantflare-vedio
+  labels:
+    app.kubernetes.io/part-of: verdantflare-vedio
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vedio-h3-model-probe
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: 10.241.109.6
+      containers:
+        - name: probe
+          image: registry.cn-qingdao.aliyuncs.com/wod/cuda:13.0-py312-szc
+          command:
+            - /bin/bash
+            - -ceu
+            - |
+              revision=42ed227ee7df40d41602854ae760620d6eb651fe
+              weights=/models/MiniMax-H3/serialized-int8/diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors
+              test "$(cat /models/MiniMax-H3/.verdantflare-revision)" = "${revision}"
+              test "$(stat -c %s "${weights}")" = "34038894550"
+              printf '%s  %s\n' \
+                9eef934046a0671bc8a5daf87100705e1478419c574cfde70c50fbe6885f76a9 \
+                "${weights}" | sha256sum --check --strict
+              test -f /models/MiniMax-H3/Ref2VA/model_index.json
+              test -f /models/MiniMax-H3/MiniMax-H3-Diffusers/modular_model_index.json
+              test -f /models/MiniMax-H3/MiniMax-H3-Turbo/minimax_h3_ref2v_turbo_4step_v0.1_bf16.safetensors
+          resources:
+            requests:
+              cpu: "2"
+              memory: 2Gi
+            limits:
+              cpu: "4"
+              memory: 4Gi
+          volumeMounts:
+            - name: models
+              mountPath: /models/MiniMax-H3
+              readOnly: true
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: minimax-h3-models
