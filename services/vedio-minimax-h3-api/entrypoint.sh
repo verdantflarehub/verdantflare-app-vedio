@@ -47,7 +47,8 @@ if (( ${#gpu_uuids[@]} != visible_gpu_count )); then
     exit 1
 fi
 
-readonly unique_gpu_count="$(printf '%s\n' "${gpu_uuids[@]}" | sort -u | wc -l | tr -d ' ')"
+unique_gpu_count="$(printf '%s\n' "${gpu_uuids[@]}" | sort -u | wc -l | tr -d ' ')"
+readonly unique_gpu_count
 if (( unique_gpu_count != visible_gpu_count )); then
     echo "MiniMax H3 requires ${visible_gpu_count} distinct CUDA GPU UUIDs; found ${unique_gpu_count}." >&2
     exit 1
