@@ -41,8 +41,8 @@ MCP 只返回项目范围的任务 ID、Artifact ID、媒体元数据和下载�
 
 | 服务 | 镜像 tag |
 | --- | --- |
-| `vedio-mcp-server` | `vedio-mcp-server-v0.1.3` |
-| `vedio-minimax-h3-api` | `vedio-minimax-h3-api-v0.2.0` |
+| `vedio-mcp-server` | `vedio-mcp-server-v0.1.4` |
+| `vedio-minimax-h3-api` | `vedio-minimax-h3-api-v0.3.0` |
 | `vedio-minimax-h3-sglang-benchmark` | `vedio-minimax-h3-sglang-benchmark-v0.1.7` |
 | `vedio-minimax-h3-lightx2v-benchmark` | `vedio-minimax-h3-lightx2v-benchmark-v0.1.1` |
 
@@ -52,7 +52,7 @@ MCP 只返回项目范围的任务 ID、Artifact ID、媒体元数据和下载�
 
 ## 成都验证环境
 
-声明式资源位于 `deploy/chengdu.beagle/verdantflare-vedio/`，使用独立 namespace `verdantflare-vedio`。H3 Runtime 固定调度到 `10.241.109.6`，由 `hami-scheduler` 申请一张完整 RTX 4090；模型和项目数据使用 `hostpath` PVC。
+声明式资源位于 `deploy/chengdu.beagle/verdantflare-vedio/`，使用独立 namespace `verdantflare-vedio`。H3 Runtime 固定调度到 `10.241.109.6`，由 `hami-scheduler` 申请两张不同的完整 RTX 4090，并以 TP2 执行单任务。迁移期间，模型通过 Retain、只读静态 PV 复用节点上已经验证的 H3 模型目录；新的视频项目数据使用独立的 `hostpath` PVC。旧 namespace 的 PVC 和工作负载必须保留到新服务完成真实验收并确认清理目标之后；删除旧模型 PVC 前还必须先把它所绑定 PV 的回收策略改为 `Retain`，否则旧 PV 的 `Delete` 策略会删除共享模型目录。
 
 部署前必须重新确认节点 Ready、完整 GPU、驱动、`hostpath` StorageClass、`/data` 容量、所需镜像以及 `vedio-mcp-auth` Secret。不得输出 Secret 内容。公网入口为：
 

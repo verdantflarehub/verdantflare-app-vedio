@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 env:
   SERVICE: vedio-mcp-server
-  VERSION: 0.1.3
+  VERSION: 0.1.4
 jobs:
   check:
     runs-on: ubuntu-latest

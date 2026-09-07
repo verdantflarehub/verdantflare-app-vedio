@@ -37,14 +37,14 @@ spec:
             - /bin/bash
             - -ceu
             - |
-              test "$(nvidia-smi --query-gpu=uuid --format=csv,noheader | sort -u | wc -l)" -eq 1
+              test "$(nvidia-smi --query-gpu=uuid --format=csv,noheader | sort -u | wc -l)" -eq 2
               nvidia-smi --query-gpu=uuid,name,memory.total,driver_version --format=csv,noheader
           resources:
             requests:
               cpu: "1"
               memory: 1Gi
-              nvidia.com/gpu: "1"
+              nvidia.com/gpu: "2"
             limits:
               cpu: "2"
               memory: 2Gi
-              nvidia.com/gpu: "1"
+              nvidia.com/gpu: "2"

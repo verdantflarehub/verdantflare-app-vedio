@@ -8,7 +8,7 @@ workflow. The service exposes SGLang's asynchronous OpenAI-compatible
 
 | Component | Version |
 | --- | --- |
-| Service image | `vedio-minimax-h3-api-v0.2.0` |
+| Service image | `vedio-minimax-h3-api-v0.3.0` |
 | SGLang | `bbbcbf9418f0d8fbea968d96f3b470f5b883bac3` |
 | comfy-kitchen | `0.2.31` |
 | FlashInfer Python/cubin | `0.6.17` |
@@ -20,10 +20,11 @@ INT8 benchmark. Its only behavioral change is replacing the benchmark runner
 with the long-running API entrypoint. Model weights and generated video remain
 on persistent storage and do not enter the image or Git.
 
-The Chengdu deployment is pinned to node `10.241.109.6` and one whole RTX
-4090 allocated by `hami-scheduler`. It uses TP1, Ulysses1, exact
-FlashAttention, eager execution, full DiT/text-encoder layerwise offload, and
-the serialized Full INT8 transformer. The checkpoint path is fixed to:
+The Chengdu deployment is pinned to node `10.241.109.6` and two distinct whole
+RTX 4090 GPUs allocated by `hami-scheduler`. It uses TP2, Ulysses1, exact
+FlashAttention, eager execution, full DiT/text-encoder/VAE layerwise offload,
+zero resident DiT layers, and the serialized Full INT8 transformer. The
+checkpoint path is fixed to:
 
 ```text
 /models/MiniMax-H3/serialized-int8/diffusion_models/minimax_h3_ref2va_int8_convrot.safetensors
@@ -31,6 +32,13 @@ the serialized Full INT8 transformer. The checkpoint path is fixed to:
 
 The verified file is `34038894550` bytes with SHA-256
 `9eef934046a0671bc8a5daf87100705e1478419c574cfde70c50fbe6885f76a9`.
+
+The entrypoint keeps single-GPU defaults for backward-compatible local smoke
+tests. Production sets `H3_VISIBLE_GPU_COUNT=2`, `H3_NUM_GPUS=2`,
+`H3_TP_SIZE=2`, `H3_ULYSSES_DEGREE=1`,
+`H3_LAYERWISE_OFFLOAD_COMPONENTS=dit,text_encoder,vae`, and
+`H3_DIT_LAYERWISE_RESIDENT_LAYERS=0`. Startup rejects mismatched counts,
+invalid parallel degrees, or duplicate visible CUDA UUIDs.
 
 ## API
 

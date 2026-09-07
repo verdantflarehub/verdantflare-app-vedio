@@ -7,7 +7,7 @@ USER root
 
 LABEL org.opencontainers.image.source="https://github.com/verdantflarehub/verdantflare-app-vedio"
 LABEL org.opencontainers.image.title="VerdantFlare MiniMax H3 Ref2VA Full INT8 API"
-LABEL org.opencontainers.image.version="0.2.0"
+LABEL org.opencontainers.image.version="0.3.0"
 LABEL org.opencontainers.image.licenses="Apache-2.0 AND LicenseRef-MiniMax-H3-Community"
 
 # Promote the exact SGLang/FlashInfer/comfy-kitchen image validated by the
@@ -21,7 +21,12 @@ RUN chmod 0755 \
 
 ENV MODEL_PATH=/models/MiniMax-H3 \
     HF_HOME=/models/.cache/huggingface \
-    H3_VISIBLE_GPU_COUNT=1
+    H3_VISIBLE_GPU_COUNT=1 \
+    H3_NUM_GPUS=1 \
+    H3_TP_SIZE=1 \
+    H3_ULYSSES_DEGREE=1 \
+    H3_LAYERWISE_OFFLOAD_COMPONENTS=dit,text_encoder \
+    H3_DIT_LAYERWISE_RESIDENT_LAYERS=0
 
 VOLUME ["/models/MiniMax-H3", "/data/projects"]
 

@@ -34,7 +34,7 @@ class VideoExecutor:
         self.tasks = tasks
         self.runtime_url = os.environ.get("H3_RUNTIME_URL", "http://vedio-minimax-h3-api:8000").rstrip("/")
         self.runtime_artifact_url = os.environ.get("VIDEO_MCP_RUNTIME_BASE_URL", "http://vedio-mcp-server:8000").rstrip("/")
-        self.runtime_version = os.environ.get("H3_RUNTIME_VERSION", "vedio-minimax-h3-api-v0.2.0")
+        self.runtime_version = os.environ.get("H3_RUNTIME_VERSION", "vedio-minimax-h3-api-v0.3.0")
         self.allowed_origins = frozenset(x.strip() for x in os.environ.get("VIDEO_ASSET_IMPORT_ORIGINS", "").split(",") if x.strip())
         self.client = client or httpx.Client(timeout=httpx.Timeout(connect=10, read=3600, write=600, pool=10), follow_redirects=False)
 

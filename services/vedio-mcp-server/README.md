@@ -23,7 +23,7 @@ The MCP never returns Runtime task IDs, internal service URLs, node names, GPU d
 | `VIDEO_MCP_ALLOWED_ORIGINS` | loopback only |
 | `VIDEO_MCP_RUNTIME_BASE_URL` | `http://vedio-mcp-server:8000` |
 | `H3_RUNTIME_URL` | `http://vedio-minimax-h3-api:8000` |
-| `H3_RUNTIME_VERSION` | `vedio-minimax-h3-api-v0.2.0` |
+| `H3_RUNTIME_VERSION` | `vedio-minimax-h3-api-v0.3.0` |
 
 `video.generate` uses 21 sigma points, which corresponds to the approved Base
 20 NFE profile. This parameter is owned by the service and is not exposed as a
