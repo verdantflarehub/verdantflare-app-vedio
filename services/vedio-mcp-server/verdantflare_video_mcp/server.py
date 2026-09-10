@@ -44,10 +44,15 @@ def artifact_import(project_id: str, source_url: str, filename: str, expected_sh
 @mcp.tool(name="video.generate")
 def video_generate(project_id: str, idempotency_key: str, model: str, prompt: str,
                    duration_seconds: int, aspect_ratio: str,
-                   references: dict[str, list[dict[str, str]]]) -> types.CallToolResult:
+                   references: dict[str, list[dict[str, str]]], service: str = "h3") -> types.CallToolResult:
+    """Generate with explicit service: h3 (legacy default, 4-15s) or h3-sol (5/10/15s).
+
+    Both use model=minimax-h3-ref2va, portrait 9:16 and seed=7. References must be
+    registered artifacts. Routes never fall back; retain the returned task id.
+    """
     record = executor.generate(project_id=project_id, idempotency_key=idempotency_key, model=model,
                                prompt=prompt, duration_seconds=duration_seconds,
-                               aspect_ratio=aspect_ratio, references=references)
+                               aspect_ratio=aspect_ratio, references=references, service=service)
     return _result({"video_task_id": record.video_task_id, "status": record.status, "created_at": record.created_at})
 
 
@@ -55,7 +60,8 @@ def video_generate(project_id: str, idempotency_key: str, model: str, prompt: st
 def video_status(video_task_id: str) -> types.CallToolResult:
     record = executor.status(video_task_id)
     return _result({"video_task_id": record.video_task_id, "status": record.status,
-                    "created_at": record.created_at, "updated_at": record.updated_at, "error": record.error})
+                    "created_at": record.created_at, "updated_at": record.updated_at, "error": record.error,
+                    "service": record.service, "execution_instance_id": record.execution_instance_id, "stage": record.runtime_stage})
 
 
 @mcp.tool(name="video.result")
@@ -63,7 +69,7 @@ def video_result(video_task_id: str) -> types.CallToolResult:
     record = executor.result(video_task_id)
     artifact = artifacts.get(record.artifact_id, record.project_id)
     value = {"video_task_id": record.video_task_id, "artifact_id": artifact.artifact_id,
-             "model": record.request["model"], "runtime_version": executor.runtime_version,
+             "model": record.request["model"], "runtime_version": record.runtime_version or executor.runtime_version, "service": record.service,
              "input_digest": record.input_digest, "media": record.media,
              "download_path": artifacts.download_path(artifact.artifact_id)}
     return _result(value)

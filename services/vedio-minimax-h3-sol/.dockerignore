@@ -30,3 +30,6 @@
 !patches/*.md
 !gpu_tests/
 !gpu_tests/*.py
+!Dockerfile.resident
+!resident_api.py
+!resident_worker.py

@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 MODELS = {"h3": ("H3", "vedio-minimax-h3-api"), "h3-sol": ("H3-Sol", "vedio-minimax-h3-sol-api")}
 FIELDS = {"DCGM_FI_DEV_GPU_UTIL": ("utilization_percent", 100, 1),
           "DCGM_FI_DEV_FB_USED": ("memory_used_gib", 1048576, 1024),
@@ -130,6 +130,7 @@ class Resources:
         self.inventory_failed = False
         self.history = {}
         self.latest = {}
+        self.task_provider = lambda: []
         self.started_at = clock()
         self.protocol = {"state": "unavailable", "sampled_at": None, "status": "unknown"}
         self.requests = {"count": 0, "errors": 0, "last_at": None, "last_error_at": None}
@@ -174,7 +175,7 @@ class Resources:
                          "not_ready" if not ready else "partial" if ready < desired or ready < len(instances) else "online")
                 models[model] = {"id": model, "name": name, "deployment_status": state,
                                  "ready": ready, "current": len(instances), "desired": desired,
-                                 "route_status": "connected" if model == "h3" else "not_connected", "instances": instances}
+                                 "route_status": "connected" if model == "h3" or (os.environ.get("H3_SOL_RUNTIME_URL") and os.environ.get("H3_SOL_RUNTIME_TOKEN")) else "not_connected", "instances": instances}
             with self.lock:
                 self.models, self.inventory_at, self.inventory_failed = models, now, False
                 allowed = {g for m in models.values() for i in m["instances"] for g in i["gpu_ids"]}
@@ -225,10 +226,28 @@ class Resources:
                 self.protocol = {"status": status, "state": "fresh", "sampled_at": stamp(self.clock())}
             await asyncio.sleep(10)
 
+    def sync_runtime_phase(self):
+        url = os.environ.get("H3_SOL_RUNTIME_URL", "").rstrip("/")
+        if not url:
+            return
+        try:
+            with httpx.Client(timeout=5, trust_env=False) as client:
+                response = client.get(url + "/health")
+                data = response.json()
+            if data.get("stage") not in {"gpu_check", "model_integrity", "loading", "ready", "downloading", "warming", "generating", "saving", "failed", "stopping"}:
+                return
+            with self.lock:
+                for instance in self.models.get("h3-sol", {}).get("instances", []):
+                    if instance["id"] == data.get("execution_instance_id"):
+                        instance["model_phase"] = data["stage"]
+        except (httpx.HTTPError, ValueError, TypeError):
+            pass
+
     async def poll(self):
         while True:
             await run_in_threadpool(self.sync_inventory)
             await run_in_threadpool(self.sync_metrics)
+            await run_in_threadpool(self.sync_runtime_phase)
             await asyncio.sleep(10)
 
     def _state(self):
@@ -241,7 +260,7 @@ class Resources:
             state = self._state()
             rows = []
             for model, (name, _) in MODELS.items():
-                row = copy.deepcopy(self.models.get(model, {"id": model, "name": name, "route_status": "connected" if model == "h3" else "not_connected"}))
+                row = copy.deepcopy(self.models.get(model, {"id": model, "name": name, "route_status": "connected" if model == "h3" or (os.environ.get("H3_SOL_RUNTIME_URL") and os.environ.get("H3_SOL_RUNTIME_TOKEN")) else "not_connected"}))
                 row.pop("instances", None)
                 if state != "fresh":
                     row.update(deployment_status="unknown", ready=None, current=None, desired=None)
@@ -264,7 +283,9 @@ class Resources:
         if row is None:
             raise KeyError(instance_id)
         return {"state": "fresh", "sampled_at": data["sampled_at"], "instance": row,
-                "gpus": [self.gpu(model, instance_id, uid, 15) for uid in row["gpu_ids"]]}
+                "gpus": [self.gpu(model, instance_id, uid, 15) for uid in row["gpu_ids"]],
+                "tasks": [{"video_task_id": t.video_task_id, "status": t.status} for t in self.task_provider()
+                          if t.execution_instance_id == instance_id and t.service == model]}
 
     def gpu(self, model, instance_id, uid, minutes):
         with self.lock:

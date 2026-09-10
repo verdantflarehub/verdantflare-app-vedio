@@ -17,6 +17,10 @@ function renderMCP(data){
   $("mcpStatus").innerHTML=`<button class="business-card business-mcp" data-resource="mcp"><div><h3>MCP</h3><span class="business-state">服务可达</span></div><div>协议检查：${protocol}<p>${date(data.protocol.sampled_at)}</p></div><div>已记录请求：${data.requests.count}<p>HTTP 错误：${data.requests.errors} · 查看详情 →</p></div></button>`;
 }
 function renderModels(data){
+  const sol=data.models.find(m=>m.id==='h3-sol');
+  const option=$("dispatchForm").elements.service.querySelector('option[value="h3-sol"]');
+  const available=data.state==='fresh'&&sol?.route_status==='connected'&&sol.ready>0;
+  option.disabled=!available;option.textContent=available?'H3-Sol':'H3-Sol · 暂不可用';
   $("inventoryTime").textContent=`部署采集：${date(data.sampled_at)}${data.state!=='fresh'?' · 当前部署状态未知':''}`;
   $("modelServices").innerHTML=data.models.map(m=>`<button class="business-card" data-resource="model" data-model="${escapeHTML(m.id)}"><h3>${escapeHTML(m.name)}</h3><span class="business-state ${data.state==='fresh'&&m.deployment_status==='online'?'':'stale'}">${deploymentLabels[m.deployment_status]||'未知'}</span><div class="instance-counts"><div><strong>${m.ready??'—'}</strong><span>就绪实例</span></div><div><strong>${m.current??'—'}</strong><span>当前实例</span></div><div><strong>${m.desired??'—'}</strong><span>期望实例</span></div></div><p>MCP 路由：${m.route_status==='connected'?'已接入':m.route_status==='not_connected'?'未接入':'未知'}</p><div class="business-foot">查看 ${escapeHTML(m.name)} 实例列表 →</div></button>`).join('');
 }
@@ -78,7 +82,7 @@ async function inspectResource(kind,model='',id='',gpu='',focus=true){
         const i=d.instance;title=i.name;
         html=resourceDetails([['所属模型',names[model]],['实例身份',i.id],['运行状态',i.phase],['就绪状态',i.ready?'就绪':'未就绪'],['模型阶段',i.model_phase],['节点',i.node],['版本',i.versions.join(', ')],['启动时间',date(i.started_at)],['重启次数',i.restart_count],['采集时间',date(d.sampled_at)]]);
         html+='<h3>实例绑定的 GPU</h3>'+(d.gpus.length?`<div class="business-gpus">${d.gpus.map(g=>`<div class="business-card"><h3>${escapeHTML(g.metrics?.name||g.last_sample?.name||'GPU')}</h3><p>${escapeHTML(g.id)}</p><p>利用率：${g.metrics?.utilization_percent??'—'} %</p><p>显存：${g.metrics?.memory_used_gib??'—'} / ${g.metrics?.memory_total_gib??'—'} GiB</p><p>${g.state==='fresh'?'最近采样':g.state==='stale'?'数据过期':'指标未接入'}：${date(g.sampled_at)}</p>${resourceButton('gpu',model,id,'查看指标与趋势 →',g.id)}</div>`).join('')}</div>`:emptyResource('暂无已确认的物理 GPU 分配。'));
-        html+='<h3>关联任务</h3><p class="business-muted">当前运行时未上报执行实例身份，无法可靠列出本实例的任务。</p>';
+        html+='<h3>关联任务</h3>'+((d.tasks||[]).length?d.tasks.map(t=>`<p><button class="button" data-task="${escapeHTML(t.video_task_id)}">${escapeHTML(t.video_task_id)} · ${labels[t.status]||escapeHTML(t.status)}</button></p>`).join(''):'<p class="business-muted">暂无可确认的关联任务；未上报执行实例身份的任务不推断归属。</p>');
       }
     }else if(kind==='gpu'){
       const d=await api(`${path}/${encodeURIComponent(id)}/gpus/${encodeURIComponent(gpu)}?window=${resourceWindow}`);title=d.metrics?.name||d.last_sample?.name||'GPU 详情';

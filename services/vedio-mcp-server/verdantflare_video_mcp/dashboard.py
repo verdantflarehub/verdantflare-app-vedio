@@ -57,20 +57,21 @@ class ImportRequest(BaseModel):
 
 def public_task(record):
     return {"video_task_id": record.video_task_id, "project_id": record.project_id,
-            "idempotency_key": record.idempotency_key, "service": record.request.get("service", "h3"),
+            "idempotency_key": record.idempotency_key, "service": record.service,
             "prompt": record.request.get("prompt", ""),
             "duration_seconds": record.request.get("duration_seconds"),
             "aspect_ratio": record.request.get("aspect_ratio"), "seed": record.request.get("seed", 7),
             "status": record.status, "created_at": record.created_at, "updated_at": record.updated_at,
             "completed_at": record.completed_at or (record.updated_at if record.status in {"succeeded", "failed", "cancelled"} else None),
             "artifact_id": record.artifact_id, "media": record.media, "error": record.error,
-            "input_digest": record.input_digest, "execution_instance_id": None, "association_source": None}
+            "input_digest": record.input_digest, "execution_instance_id": record.execution_instance_id, "association_source": "runtime" if record.execution_instance_id else None, "runtime_stage": record.runtime_stage}
 
 
 class Dashboard:
     def __init__(self, executor):
         self.executor = executor
         self.resources = Resources()
+        self.resources.task_provider = self.records
         self.result_lock = threading.Lock()
         self.services = {"h3": "unknown", "h3-sol": "not_connected", "mcp": "ready"}
         self.sync_errors = 0
@@ -92,6 +93,12 @@ class Dashboard:
             self.services["h3"] = "ready" if response.is_success else "unavailable"
         except httpx.HTTPError:
             self.services["h3"] = "unavailable"
+        if self.executor.sol_url and self.executor.sol_token:
+            try:
+                response = self.executor.client.get(f"{self.executor.sol_url}/health", timeout=5)
+                self.services["h3-sol"] = "ready" if response.is_success else "unavailable"
+            except httpx.HTTPError:
+                self.services["h3-sol"] = "unavailable"
         errors = 0
         for record in self.records():
             if record.status in {"queued", "running"} and record.runtime_task_id:
@@ -149,7 +156,7 @@ class Dashboard:
     def detail(self, task_id):
         record = self.executor.tasks.get(task_id)
         value = public_task(record)
-        value["runtime_version"] = self.executor.runtime_version
+        value["runtime_version"] = record.runtime_version or self.executor.runtime_version
         value["references"] = []
         for kind, items in record.request.get("references", {}).items():
             for item in items:
@@ -209,9 +216,9 @@ class Dashboard:
                     value = artifact.model_dump()
                 else:
                     inputs = Submission.model_validate_json(body)
-                    if inputs.service != "h3":
+                    if inputs.service not in {"h3", "h3-sol"} or (inputs.service == "h3-sol" and not (self.executor.sol_url and self.executor.sol_token)):
                         return JSONResponse({"error": "service_not_connected"}, status_code=409)
-                    kwargs = inputs.model_dump(exclude={"service"})
+                    kwargs = inputs.model_dump()
                     record = await run_in_threadpool(self.executor.generate, model="minimax-h3-ref2va", **kwargs)
                     value = public_task(record)
             return JSONResponse(value, headers={"Cache-Control": "no-store"})

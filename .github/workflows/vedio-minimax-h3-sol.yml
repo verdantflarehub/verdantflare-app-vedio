@@ -1,4 +1,4 @@
-name: H3-Sol Experimental Package
+name: H3-Sol Resident Service
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: false
 env:
   SERVICE: vedio-minimax-h3-sol
-  VERSION: 0.1.1
+  VERSION: 0.2.0
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -75,6 +75,7 @@ jobs:
         id: build
         with:
           context: services/${{ env.SERVICE }}
+          file: services/${{ env.SERVICE }}/Dockerfile.resident
           push: true
           platforms: linux/amd64
           provenance: false

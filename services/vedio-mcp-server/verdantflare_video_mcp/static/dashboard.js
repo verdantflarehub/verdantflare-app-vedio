@@ -265,7 +265,7 @@ async function inspect(id) {
     $("modalShotTitle").textContent =
       `${task.project_id} / ${task.idempotency_key}`;
     $("inspectorBody").innerHTML =
-      `<p>${names[task.service] || escapeHTML(task.service)} · ${labels[task.status] || escapeHTML(task.status)} · ${date(task.created_at)}</p><p>执行模型：<button class="button" data-resource="model" data-model="${escapeHTML(task.service)}">${names[task.service] || escapeHTML(task.service)} →</button> · 执行实例：${task.execution_instance_id ? escapeHTML(task.execution_instance_id) : task.status === "queued" ? "尚未分配" : "未知（未上报）"}</p><div id="videoArea"></div><div class="actions" id="resultActions"></div><p id="resultMessage" role="status"></p><h3>动态运镜 Prompt</h3><p>${escapeHTML(task.prompt)}</p><div class="reference-grid" id="referenceGrid"></div><pre>${escapeHTML(JSON.stringify({ video_task_id: task.video_task_id, seed: task.seed, duration_seconds: task.duration_seconds, aspect_ratio: task.aspect_ratio, runtime_version: task.runtime_version, input_digest: task.input_digest, media: task.media, error: task.error }, null, 2))}</pre><p>技术完成后仍需人工检查构图、连续性和动态运镜。参考素材不代表已锁定首尾帧。</p>`;
+      `<p>${names[task.service] || escapeHTML(task.service)} · ${labels[task.status] || escapeHTML(task.status)} · ${date(task.created_at)}</p><p>执行模型：<button class="button" data-resource="model" data-model="${escapeHTML(task.service)}">${names[task.service] || escapeHTML(task.service)} →</button> · 执行实例：${task.execution_instance_id ? `<button class="button" data-resource="instance" data-model="${escapeHTML(task.service)}" data-instance="${escapeHTML(task.execution_instance_id)}">${escapeHTML(task.execution_instance_id)} →</button>` : task.status === "queued" ? "尚未分配" : "未知（未上报）"}</p><div id="videoArea"></div><div class="actions" id="resultActions"></div><p id="resultMessage" role="status"></p><h3>动态运镜 Prompt</h3><p>${escapeHTML(task.prompt)}</p><div class="reference-grid" id="referenceGrid"></div><pre>${escapeHTML(JSON.stringify({ video_task_id: task.video_task_id, seed: task.seed, duration_seconds: task.duration_seconds, aspect_ratio: task.aspect_ratio, runtime_version: task.runtime_version, input_digest: task.input_digest, media: task.media, error: task.error }, null, 2))}</pre><p>技术完成后仍需人工检查构图、连续性和动态运镜。参考素材不代表已锁定首尾帧。</p>`;
     const loadResult = async () => {
       $("resultMessage").textContent = "正在获取并校验视频…";
       try {
@@ -353,7 +353,7 @@ document.addEventListener("click", (event) => {
   if (target?.dataset.action === "dispatch") dispatch();
   if (target?.dataset.action === "refresh") refresh();
   if (target?.dataset.close) closeModal(target.dataset.close);
-  if (target?.dataset.task) inspect(target.dataset.task);
+  if (target?.dataset.task) { $("resourceDrawer").close(); inspect(target.dataset.task); }
   if (target?.dataset.view) {
     const gallery = target.dataset.view === "gallery";
     $("galleryContainer").classList.toggle("hidden", !gallery);
@@ -514,4 +514,11 @@ $("dispatchForm").addEventListener("submit", async (event) => {
   } finally {
     button.disabled = false;
   }
+});
+
+$("dispatchForm").elements.service.addEventListener("change",()=>{
+  const duration=$("dispatchForm").elements.duration_seconds;
+  const sol=$("dispatchForm").elements.service.value==='h3-sol';
+  duration.min=sol?'5':'4';duration.step=sol?'5':'1';
+  if(sol&&![5,10,15].includes(Number(duration.value)))duration.value='5';
 });

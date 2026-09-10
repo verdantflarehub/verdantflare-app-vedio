@@ -119,6 +119,18 @@ def main():
                 page.locator('[data-close=importModal]').click()
                 expect(page.locator('#referenceInput')).to_contain_text('')
                 assert page.locator('#referenceInput').input_value().startswith('image | art_')
+                def models_connected(route):
+                    route.fulfill(json={'state':'fresh','sampled_at':'2026-09-10T00:00:00Z','models':[
+                        {'id':'h3','name':'H3','deployment_status':'online','ready':1,'current':1,'desired':1,'route_status':'connected'},
+                        {'id':'h3-sol','name':'H3-Sol','deployment_status':'online','ready':1,'current':1,'desired':1,'route_status':'connected'}]})
+                page.route('**/api/models',models_connected)
+                page.evaluate('refreshBusiness()')
+                expect(page.locator('#dispatchForm option[value="h3-sol"]')).to_be_enabled()
+                page.locator('#dispatchForm [name=service]').select_option('h3-sol')
+                expect(page.locator('#dispatchForm [name=duration_seconds]')).to_have_attribute('step','5')
+                page.locator('#dispatchForm [name=service]').select_option('h3')
+                expect(page.locator('#dispatchForm [name=duration_seconds]')).to_have_attribute('step','1')
+                page.unroute('**/api/models',models_connected)
                 page.locator('#submitTask').click(); expect(page.locator('#inspectorBody')).to_contain_text('A browser test task')
                 page.keyboard.press('Escape')
                 page.set_viewport_size({'width':390,'height':844})

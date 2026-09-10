@@ -23,6 +23,10 @@ class TaskNotFound(RuntimeError):
 
 class TaskRecord(BaseModel):
     schema_version: int = 1
+    service: str = "h3"
+    runtime_version: str | None = None
+    execution_instance_id: str | None = None
+    runtime_stage: str | None = None
     video_task_id: str
     project_id: str
     idempotency_key: str
