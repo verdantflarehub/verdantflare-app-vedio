@@ -19,7 +19,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-VERSION = "0.4.0"
+VERSION = "0.4.1"
 MODELS = {"h3": ("H3", "vedio-minimax-h3-api"), "h3-sol": ("H3-Sol", "vedio-minimax-h3-sol-api")}
 FIELDS = {"DCGM_FI_DEV_GPU_UTIL": ("utilization_percent", 100, 1),
           "DCGM_FI_DEV_FB_USED": ("memory_used_gib", 1048576, 1024),

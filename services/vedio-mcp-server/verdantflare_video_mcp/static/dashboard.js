@@ -1,6 +1,15 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const base = location.pathname.replace(/\/dashboard\/?$/, "");
+const tokenStorageKey = `verdantflare.video.dashboard.token:${base}`;
+function storeToken(value) {
+  try {
+    if (value) localStorage.setItem(tokenStorageKey, value);
+    else localStorage.removeItem(tokenStorageKey);
+  } catch {
+    // Storage-disabled browsers still support the current in-memory session.
+  }
+}
 const names = { h3: "H3", "h3-sol": "H3-Sol", mcp: "MCP" };
 const labels = {
   queued: "排队中",
@@ -105,6 +114,8 @@ async function api(path, options = {}) {
   });
   if (!response.ok) {
     if (response.status === 401) {
+      token = "";
+      storeToken("");
       invalidate();
       $("pollState").textContent = "认证失败";
       $("tokenButton").textContent = "Token：请重新设置";
@@ -406,6 +417,7 @@ $("tokenForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   invalidate();
   token = $("tokenInput").value.trim();
+  storeToken(token);
   $("tokenInput").value = "";
   authorized = true;
   $("tokenButton").textContent = "Token：已设置";
@@ -414,6 +426,7 @@ $("tokenForm").addEventListener("submit", async (event) => {
 });
 $("clearToken").addEventListener("click", () => {
   token = "";
+  storeToken("");
   invalidate();
   $("tokenInput").value = "";
   $("tokenButton").textContent = "Token：未配置";
@@ -521,4 +534,13 @@ $("dispatchForm").elements.service.addEventListener("change",()=>{
   const sol=$("dispatchForm").elements.service.value==='h3-sol';
   duration.min=sol?'5':'4';duration.step=sol?'5':'1';
   if(sol&&![5,10,15].includes(Number(duration.value)))duration.value='5';
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+  try { token = localStorage.getItem(tokenStorageKey) || ""; } catch {}
+  if (token) {
+    authorized = true;
+    $("tokenButton").textContent = "Token：已设置";
+    refresh();
+  }
 });
