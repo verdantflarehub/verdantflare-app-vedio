@@ -17,6 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from .artifacts import ArtifactError, ArtifactNotFound
 from .executor import ExecutionError
+from .resources import Resources
 from .tasks import TaskConflict, TaskNotFound, TaskRecord
 
 STATIC = Path(__file__).parent / "static"
@@ -63,12 +64,13 @@ def public_task(record):
             "status": record.status, "created_at": record.created_at, "updated_at": record.updated_at,
             "completed_at": record.completed_at or (record.updated_at if record.status in {"succeeded", "failed", "cancelled"} else None),
             "artifact_id": record.artifact_id, "media": record.media, "error": record.error,
-            "input_digest": record.input_digest}
+            "input_digest": record.input_digest, "execution_instance_id": None, "association_source": None}
 
 
 class Dashboard:
     def __init__(self, executor):
         self.executor = executor
+        self.resources = Resources()
         self.result_lock = threading.Lock()
         self.services = {"h3": "unknown", "h3-sol": "not_connected", "mcp": "ready"}
         self.sync_errors = 0
@@ -123,7 +125,7 @@ class Dashboard:
         records = self.records()
         projects = sorted({r.project_id for r in records})
         rows = [public_task(r) for r in records]
-        for key in ("project_id", "service", "status"):
+        for key in ("project_id", "service"):
             value = query.get(key, "all")
             if value != "all":
                 rows = [r for r in rows if r[key] == value]
@@ -133,6 +135,9 @@ class Dashboard:
                 "prompt", "project_id", "idempotency_key", "video_task_id")).casefold()]
         counts = {s: sum(r["status"] == s for r in rows) for s in (
             "queued", "running", "succeeded", "failed", "cancelled")}
+        status_filter = query.get("status", "all")
+        if status_filter != "all":
+            rows = [r for r in rows if r["status"] == status_filter]
         elapsed = [(datetime.fromisoformat(r["completed_at"]) - datetime.fromisoformat(r["created_at"])).total_seconds()
                    for r in rows if r["status"] == "succeeded"]
         return {"tasks": rows[(page-1)*size:page*size], "total": len(rows), "page": page,
@@ -230,11 +235,11 @@ class Dashboard:
 
         async def asset(request):
             name = request.path_params["name"]
-            if name not in {"dashboard.css", "dashboard.js"}:
+            if name not in {"dashboard.css", "dashboard.js", "resources.js"}:
                 return JSONResponse({"error": "not_found"}, status_code=404)
             return FileResponse(STATIC / name, headers={"Cache-Control": "no-cache"})
 
-        return [Route("/dashboard", shell), Route("/dashboard/", shell),
+        return [*self.resources.routes(), Route("/dashboard", shell), Route("/dashboard/", shell),
                 Route("/dashboard/static/{name:str}", asset),
                 Route("/api/dashboard", self.endpoint), Route("/api/tasks", self.endpoint, methods=["POST"]),
                 Route("/api/tasks/{task_id:str}", self.endpoint),

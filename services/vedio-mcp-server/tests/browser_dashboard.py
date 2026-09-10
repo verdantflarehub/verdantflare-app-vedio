@@ -48,6 +48,10 @@ def main():
         executor.allowed_origins = frozenset({'https://assets.example.com'})
         dashboard = Dashboard(executor)
         dashboard.services['h3'] = 'ready'
+        from test_resources import Source
+        from verdantflare_video_mcp.resources import Resources
+        dashboard.resources = Resources(Source())
+        dashboard.resources.sync_inventory(); dashboard.resources.sync_metrics()
         async def content(request):
             artifact = artifacts.get(request.path_params['artifact_id'])
             return FileResponse(artifacts.content_path(artifact),media_type=artifact.media_type)
@@ -69,10 +73,23 @@ def main():
                 page = browser.new_page(viewport={'width':1440,'height':1000})
                 errors=[]; page.on('pageerror',lambda error: errors.append(str(error)))
                 page.goto(f'http://127.0.0.1:{port}/video/dashboard/')
-                expect(page.locator('h1')).to_contain_text('动态长镜头')
+                expect(page.locator('h1')).to_contain_text('视频业务工作台')
                 page.locator('#tokenButton').click(); page.locator('#tokenInput').fill('browser-test-token'); page.locator('#tokenForm button[type=submit]').click()
                 expect(page.locator('#pageLabel')).to_contain_text('27 个任务')
-                expect(page.locator('#serviceStates')).to_contain_text('H3-Sol · 未接入')
+                expect(page.locator('#modelServices')).to_contain_text('H3-Sol')
+                expect(page.locator('#modelServices')).to_contain_text('未部署')
+                expect(page.locator('main [data-resource=gpu]')).to_have_count(0)
+                page.locator('#modelServices [data-model=h3]').click()
+                expect(page.locator('#resourceBody')).to_contain_text('h3-instance')
+                page.locator('#resourceBody [data-resource=instance]').click()
+                expect(page.locator('#resourceBody [data-resource=gpu]')).to_have_count(2)
+                page.locator('#resourceBody [data-resource=gpu]').first.click()
+                expect(page.locator('#resourceBody')).to_contain_text('18 / 24 GiB')
+                page.locator('[data-resource-window="60m"]').click()
+                expect(page.locator('[data-resource-window="60m"]')).to_have_attribute('aria-pressed','true')
+                page.locator('#resourceCrumbs [data-resource=instance]').click()
+                expect(page.locator('#resourceBody')).to_contain_text('未上报执行实例身份')
+                page.keyboard.press('Escape')
                 expect(page.locator('.model-card')).to_have_count(24)
                 expect(page.locator('.model-card img').first).to_be_visible(timeout=15000)
                 page.locator('#nextPage').click(); expect(page.locator('.model-card')).to_have_count(3)
@@ -108,8 +125,21 @@ def main():
                 page.evaluate('window.scrollTo({top:0,behavior:"instant"})')
                 page.screenshot(path=str(output/'mobile.png'))
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile horizontal overflow'
+                page.locator('#modelServices [data-model=h3]').click()
+                page.locator('#resourceBody [data-resource=instance]').click()
+                expect(page.locator('#resourceBody [data-resource=gpu]')).to_have_count(2)
+                assert page.locator('#resourceDrawer').evaluate('(e)=>e.scrollWidth<=e.clientWidth'), 'Mobile instance overflow'
+                page.locator('#resourceBody [data-resource=gpu]').first.click()
+                expect(page.locator('#resourceBody svg')).to_have_count(2)
+                assert page.locator('#resourceDrawer').evaluate('(e)=>e.scrollWidth<=e.clientWidth'), 'Mobile GPU overflow'
+                for _ in range(8):
+                    page.keyboard.press('Tab')
+                    assert page.evaluate('document.getElementById("resourceDrawer").contains(document.activeElement)')
+                page.keyboard.press('Escape')
                 assert page.evaluate('localStorage.length === 0 && sessionStorage.length === 0'), 'Token must not be persisted'
                 page.locator('#tokenButton').click(); page.locator('#clearToken').click(); expect(page.locator('.model-card')).to_have_count(0)
+                expect(page.locator('#resourceBody')).to_be_empty()
+                expect(page.locator('#modelServices')).to_contain_text('认证后')
                 assert not errors, errors
                 browser.close()
             print('Browser integration passed: prefixed routes, auth, pagination, filters, views, previews, playback, submission, mobile, token cleanup')

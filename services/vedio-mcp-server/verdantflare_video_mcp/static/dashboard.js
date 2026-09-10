@@ -92,14 +92,8 @@ function invalidate() {
     "metricCompleted",
     "metricFailed",
     "metricLatency",
-    "orbitRunning",
   ].forEach((id) => ($(id).textContent = "—"));
-  $("serviceStates").innerHTML = Object.entries(names)
-    .map(
-      ([key, name]) =>
-        `<span class="pill-badge">${name} · ${key === "h3-sol" ? "未接入" : "待连接"}</span>`,
-    )
-    .join("");
+  clearBusiness();
 }
 async function api(path, options = {}) {
   const headers = { Authorization: `Bearer ${token}`, ...options.headers };
@@ -181,25 +175,9 @@ function render(data) {
   total = data.total;
   $("metricQueued").textContent = data.counts.queued;
   $("metricRunning").textContent = data.counts.running;
-  $("orbitRunning").textContent = data.counts.running;
   $("metricFailed").textContent = data.counts.failed;
-  const today = new Date().toDateString();
-  $("metricCompleted").textContent = data.completion_times.filter(
-    (v) => new Date(v).toDateString() === today,
-  ).length;
+  $("metricCompleted").textContent = data.counts.succeeded;
   $("metricLatency").textContent = seconds(data.average_elapsed_seconds);
-  const states = {
-    ready: "在线",
-    unavailable: "不可用",
-    unknown: "检查中",
-    not_connected: "未接入",
-  };
-  $("serviceStates").innerHTML = Object.entries(data.services)
-    .map(
-      ([key, value]) =>
-        `<span class="pill-badge">${names[key]} · ${states[value] || "未知"}</span>`,
-    )
-    .join("");
   const project = $("filterProject").value;
   $("filterProject").innerHTML =
     '<option value="all">全部项目</option>' +
@@ -222,7 +200,7 @@ function render(data) {
   $("taskRows").innerHTML = data.tasks
     .map(
       (t) =>
-        `<tr><td>${escapeHTML(t.project_id)}<br>${escapeHTML(t.idempotency_key)}</td><td>${escapeHTML(t.video_task_id)}</td><td>${names[t.service] || escapeHTML(t.service)}</td><td>${escapeHTML(t.prompt.slice(0, 100))}</td><td>${escapeHTML(t.duration_seconds)}s · ${escapeHTML(t.aspect_ratio)}</td><td>${elapsed(t)}</td><td>${badge(t)}</td><td><button class="button" data-task="${escapeHTML(t.video_task_id)}">${t.status === "succeeded" ? "回放" : "详情"}</button></td></tr>`,
+        `<tr><td>${escapeHTML(t.project_id)}<br>${escapeHTML(t.idempotency_key)}</td><td>${escapeHTML(t.video_task_id)}</td><td>${names[t.service] || escapeHTML(t.service)}</td><td>${escapeHTML(t.execution_instance_id || (t.status === "queued" ? "尚未分配" : "未知"))}</td><td>${escapeHTML(t.prompt.slice(0, 100))}</td><td>${escapeHTML(t.duration_seconds)}s · ${escapeHTML(t.aspect_ratio)}</td><td>${elapsed(t)}</td><td>${badge(t)}</td><td><button class="button" data-task="${escapeHTML(t.video_task_id)}">${t.status === "succeeded" ? "回放" : "详情"}</button></td></tr>`,
     )
     .join("");
   previews(data.tasks);
@@ -245,6 +223,7 @@ async function refresh() {
     return;
   }
   busy = true;
+  refreshBusiness();
   const version = revision;
   try {
     const data = await api(`/api/dashboard?${query()}`);
@@ -254,7 +233,7 @@ async function refresh() {
   } catch (error) {
     if (version === revision) {
       notice(error.message, true);
-      $("pollState").textContent = "连接异常";
+      $("pollState").textContent = "连接异常 · 任务为最后快照";
     }
   } finally {
     busy = false;
@@ -286,7 +265,7 @@ async function inspect(id) {
     $("modalShotTitle").textContent =
       `${task.project_id} / ${task.idempotency_key}`;
     $("inspectorBody").innerHTML =
-      `<p>${names[task.service] || escapeHTML(task.service)} · ${labels[task.status] || escapeHTML(task.status)} · ${date(task.created_at)}</p><div id="videoArea"></div><div class="actions" id="resultActions"></div><p id="resultMessage" role="status"></p><h3>动态运镜 Prompt</h3><p>${escapeHTML(task.prompt)}</p><div class="reference-grid" id="referenceGrid"></div><pre>${escapeHTML(JSON.stringify({ video_task_id: task.video_task_id, seed: task.seed, duration_seconds: task.duration_seconds, aspect_ratio: task.aspect_ratio, runtime_version: task.runtime_version, input_digest: task.input_digest, media: task.media, error: task.error }, null, 2))}</pre><p>技术完成后仍需人工检查构图、连续性和动态运镜。参考素材不代表已锁定首尾帧。</p>`;
+      `<p>${names[task.service] || escapeHTML(task.service)} · ${labels[task.status] || escapeHTML(task.status)} · ${date(task.created_at)}</p><p>执行模型：<button class="button" data-resource="model" data-model="${escapeHTML(task.service)}">${names[task.service] || escapeHTML(task.service)} →</button> · 执行实例：${task.execution_instance_id ? escapeHTML(task.execution_instance_id) : task.status === "queued" ? "尚未分配" : "未知（未上报）"}</p><div id="videoArea"></div><div class="actions" id="resultActions"></div><p id="resultMessage" role="status"></p><h3>动态运镜 Prompt</h3><p>${escapeHTML(task.prompt)}</p><div class="reference-grid" id="referenceGrid"></div><pre>${escapeHTML(JSON.stringify({ video_task_id: task.video_task_id, seed: task.seed, duration_seconds: task.duration_seconds, aspect_ratio: task.aspect_ratio, runtime_version: task.runtime_version, input_digest: task.input_digest, media: task.media, error: task.error }, null, 2))}</pre><p>技术完成后仍需人工检查构图、连续性和动态运镜。参考素材不代表已锁定首尾帧。</p>`;
     const loadResult = async () => {
       $("resultMessage").textContent = "正在获取并校验视频…";
       try {
@@ -384,9 +363,9 @@ document.addEventListener("click", (event) => {
   }
   if (target?.dataset.status) {
     status = target.dataset.status;
-    $("statusFilters")
-      .querySelectorAll("button")
-      .forEach((b) => b.classList.toggle("active", b === target));
+    document
+      .querySelectorAll("button[data-status]")
+      .forEach((b) => b.classList.toggle("active", b.dataset.status === status));
     filter();
   }
   if (event.target.classList.contains("modal-backdrop"))
@@ -396,6 +375,7 @@ document.addEventListener("keydown", (event) => {
   const dialogs = [
     ...document.querySelectorAll(".modal-backdrop:not([hidden])"),
   ];
+  if ($("resourceDrawer").open) return;
   const dialog = dialogs.at(-1);
   if (event.key === "Escape" && dialog) closeModal(dialog.id);
   if (event.key === "Tab" && dialog) {

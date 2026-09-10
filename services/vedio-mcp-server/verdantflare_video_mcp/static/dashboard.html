@@ -6,6 +6,7 @@
     <title>VerdantFlare Video Station · H3 / H3-Sol / MCP</title>
     <link rel="stylesheet" href="./dashboard/static/dashboard.css" />
     <script src="./dashboard/static/dashboard.js" defer></script>
+    <script src="./dashboard/static/resources.js" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -26,81 +27,30 @@
       </div>
     </header>
     <main class="market-page">
-      <section class="market-hero">
-        <div class="market-wrap market-hero-grid">
-          <div>
-            <p class="market-kicker">
-              VERDANTFLARE VIDEO STATION · FLEET OBSERVABILITY
-            </p>
-            <h1>MiniMax H3 动态长镜头视频工作台</h1>
-            <p>
-              H3 与 H3-Sol 分别提供视频推理服务，MCP
-              统一管理任务与产物。从参考素材到连续运镜，在这里提交、追踪与回放每一次创作。
-            </p>
-            <div class="service-row" id="serviceStates">
-              <span class="pill-badge">H3 · 待连接</span
-              ><span class="pill-badge">H3-Sol · 未接入</span
-              ><span class="pill-badge">MCP · 待连接</span>
-            </div>
-            <div class="actions">
-              <button class="button primary" data-action="dispatch">
-                立即提交长镜头任务</button
-              ><button class="button" data-action="refresh">
-                刷新实时队列
-              </button>
-            </div>
-          </div>
-          <div class="market-orbit">
-            <span>RUNNING VIDEO TASKS</span><strong id="orbitRunning">—</strong
-            ><small
-              >当前筛选范围内正在渲染的任务。任务完成后可检查参考素材、回放视频并下载产物。</small
-            >
-          </div>
-        </div>
-        <div class="market-wrap">
-          <div class="metrics-row">
-            <div class="metric-card">
-              <div class="metric-card-label">
-                <span>排队等待池</span><span>QUEUED</span>
-              </div>
-              <div class="metric-card-val" id="metricQueued">—</div>
-              <div class="metric-card-foot">等待推理服务执行</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-card-label">
-                <span>正在渲染中</span><span>RUNNING</span>
-              </div>
-              <div class="metric-card-val" id="metricRunning">—</div>
-              <div class="metric-card-foot">按实际任务状态更新</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-card-label">
-                <span>今日完成镜头</span><span>COMPLETED</span>
-              </div>
-              <div class="metric-card-val" id="metricCompleted">—</div>
-              <div class="metric-card-foot">按本地日期统计，待人工审核</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-card-label">
-                <span>失败任务</span><span>FAILED</span>
-              </div>
-              <div class="metric-card-val" id="metricFailed">—</div>
-              <div class="metric-card-foot">打开详情查看错误</div>
-            </div>
-            <div class="metric-card">
-              <div class="metric-card-label">
-                <span>平均处理耗时</span><span>AVG LATENCY</span>
-              </div>
-              <div class="metric-card-val" id="metricLatency">—</div>
-              <div class="metric-card-foot">已完成任务，包含排队</div>
-            </div>
-          </div>
-        </div>
+      <section class="market-wrap business-intro">
+        <p class="market-kicker">VIDEO WORKSPACE</p><h1>视频业务工作台</h1>
+        <p>MCP 服务是否正常，哪些模型已上线，任务执行到哪里。</p>
+        <div id="notice" class="notice" role="status">请设置 Token 以连接 MCP。</div>
       </section>
-      <section class="market-wrap">
-        <div id="notice" class="notice" role="status">
-          请设置 Token 以连接 MCP。
+      <section class="market-wrap business-section" aria-labelledby="mcpHeading">
+        <p class="market-kicker">01 / MCP</p><h2 id="mcpHeading">MCP 服务状态</h2>
+        <div id="mcpStatus"><button class="business-card" data-resource="mcp"><h3>MCP</h3><p>认证后查看服务状态 →</p></button></div>
+      </section>
+      <section class="market-wrap business-section" aria-labelledby="modelsHeading">
+        <p class="market-kicker">02 / MODELS</p><h2 id="modelsHeading">模型服务</h2>
+        <p class="business-muted">查看模型上线状态与实例数量，进入实例后查看 GPU。</p>
+        <div id="modelServices" class="business-models"><button class="business-card" data-resource="model" data-model="h3"><h3>H3</h3><p>认证后查看实例数量 →</p></button><button class="business-card" data-resource="model" data-model="h3-sol"><h3>H3-Sol</h3><p>认证后查看实例数量 →</p></button></div>
+        <p id="inventoryTime" class="business-muted"></p>
+      </section>
+      <section class="market-wrap business-section" aria-labelledby="tasksHeading">
+        <p class="market-kicker">03 / TASKS</p><h2 id="tasksHeading">任务状态</h2>
+        <div class="business-counts">
+          <button class="business-card" data-status="queued"><span>排队中</span><strong id="metricQueued">—</strong></button>
+          <button class="business-card" data-status="running"><span>运行中</span><strong id="metricRunning">—</strong></button>
+          <button class="business-card" data-status="succeeded"><span>成功</span><strong id="metricCompleted">—</strong></button>
+          <button class="business-card" data-status="failed"><span>失败</span><strong id="metricFailed">—</strong></button>
         </div>
+        <p class="business-muted">平均处理耗时（包含排队）：<span id="metricLatency">—</span> · 数量按项目、模型和关键词汇总。</p>
         <div class="market-toolbar">
           <label class="market-search"
             ><span>PROMPT / TASK ID 快速查找</span
@@ -147,6 +97,7 @@
                 <th>项目 / 镜头</th>
                 <th>任务 ID</th>
                 <th>推理服务</th>
+                <th>执行实例</th>
                 <th>Prompt</th>
                 <th>时长 / 规格</th>
                 <th>处理耗时</th>
@@ -334,5 +285,9 @@
         <div class="dialog-body" id="inspectorBody"></div>
       </div>
     </div>
+    <dialog id="resourceDrawer" aria-labelledby="resourceTitle">
+      <div class="business-drawer-head"><h2 id="resourceTitle" tabindex="-1">业务详情</h2><button class="button" id="closeResource">关闭 ×</button></div>
+      <nav id="resourceCrumbs" aria-label="详情路径"></nav><div id="resourceBody"></div>
+    </dialog>
   </body>
 </html>

@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | H3 | `services/vedio-minimax-h3-api` | 原版推理服务，已部署 `vedio-minimax-h3-api-v0.3.0` |
 | H3-Sol | `services/vedio-minimax-h3-sol` | Sol 优化实验工程，本次通过流水线发布 `vedio-minimax-h3-sol-v0.1.1`；尚未接入 MCP |
-| MCP | `services/vedio-mcp-server` | 统一调用入口及 Dashboard，已部署 `vedio-mcp-server-v0.2.0` |
+| MCP | `services/vedio-mcp-server` | 统一调用入口及 Dashboard，版本 `vedio-mcp-server-v0.3.0`（上线证据以中央发布记录为准） |
 
 H3-Sol 的既有双卡实验出片与人工质量限制，以中央设计记录为准。实验镜像可追溯发布不等于热启动服务、生产接入或质量验收完成。H3、H3-Sol 的后续模型服务不使用 Kubernetes Job，分别复用各自模型进程；MCP 不加载模型。
 
@@ -41,7 +41,7 @@ PYTHONPATH=services/vedio-mcp-server python3 -m unittest discover -s services/ve
 
 ## MCP 与工作台
 
-MCP 保持 `artifact.import`、`video.generate`、`video.status`、`video.result` 契约。Dashboard 使用真实任务数据，支持素材导入、提交、筛选、缩略图、视频回放和下载；H3-Sol 尚未接入时显示“未接入”，不静默回退。
+MCP 保持 `artifact.import`、`video.generate`、`video.status`、`video.result` 契约。Dashboard 分为 MCP 服务状态、模型服务、任务状态。H3 / H3-Sol 展示就绪、当前、期望实例数，支持模型 → 实例 → GPU 指标与短期历史。未上报的任务执行实例显示未知。使用真实任务数据，支持素材导入、提交、筛选、缩略图、视频回放和下载；H3-Sol 尚未接入时显示“未接入”，不静默回退。
 
 以中央部署公布的地址访问 `/video/dashboard`。数据接口及产物下载使用现有 Bearer Token；浏览器仅在页面内存保存 Token。内部 `/runtime-artifacts/` 不公开。工具不暴露内部 Runtime Task ID、服务地址或宿主路径。
 

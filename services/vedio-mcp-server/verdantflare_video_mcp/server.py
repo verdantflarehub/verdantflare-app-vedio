@@ -105,7 +105,10 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "authentication_not_configured"}, status_code=503)
         if token and not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {token}"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
-        return await call_next(request)
+        response = await call_next(request)
+        if request.url.path in {"/mcp", "/api/tasks", "/api/artifacts/import"} or request.url.path.endswith("/result"):
+            dashboard.resources.record_request(response.status_code >= 400)
+        return response
 
 
 @contextlib.asynccontextmanager
@@ -113,13 +116,15 @@ async def lifespan(app: Starlette):
     artifacts.ensure_ready(); tasks.ensure_ready()
     async with mcp.session_manager.run():
         dashboard.recover_incomplete_submissions()
-        poller = asyncio.create_task(dashboard.poll())
+        pollers = [asyncio.create_task(coro) for coro in (dashboard.poll(), dashboard.resources.poll(), dashboard.resources.poll_protocol())]
         try:
             yield
         finally:
-            poller.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await poller
+            for poller in pollers:
+                poller.cancel()
+            for poller in pollers:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await poller
 
 
 app = Starlette(routes=[*dashboard.routes(), Route("/health", health),
