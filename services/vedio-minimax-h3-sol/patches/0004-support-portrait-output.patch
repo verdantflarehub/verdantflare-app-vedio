@@ -1,0 +1,28 @@
+--- a/h3_runtime/engine.py
++++ b/h3_runtime/engine.py
+@@ -118,7 +118,14 @@
+         task: str = "t2v",
+         reference_image_resize_mode: str = "match",
+         cpu_offload: bool = False,
++        output_width: int = WIDTH,
++        output_height: int = HEIGHT,
+     ) -> None:
++        if (type(output_width) is not int or type(output_height) is not int
++                or (output_width, output_height) not in {(1344, 768), (768, 1344)}):
++            raise ValueError("output must be 1344x768 or 768x1344")
++        self.output_width = output_width
++        self.output_height = output_height
+         self._owns_process_group = False
+         local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+         torch.cuda.set_device(local_rank)
+@@ -355,8 +362,8 @@
+ 
+         request = {
+             "prompt": prompt.strip(),
+-            "height": HEIGHT,
+-            "width": WIDTH,
++            "height": self.output_height,
++            "width": self.output_width,
+             "num_frames": DURATION_FRAMES[duration],
+             "num_inference_steps": INFERENCE_STEPS,
+             "generator": torch.Generator().manual_seed(int(seed)),

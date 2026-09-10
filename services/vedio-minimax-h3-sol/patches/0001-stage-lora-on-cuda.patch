@@ -1,0 +1,61 @@
+--- a/h3_runtime/lora.py
++++ b/h3_runtime/lora.py
+@@ -109,8 +109,18 @@
+     *,
+     alpha: int = 8,
+     scale: float = 1.0,
++    staging_device: str | torch.device | None = None,
+ ) -> FuseReport:
+     """Validate and fuse a PEFT LoRA or FastVideo v2 hybrid adapter in-place."""
++    # Opt-in CPU-resident weights with one CUDA working copy at a time.
++    # Keep all checkpoint validation and arithmetic identical to the resident path.
++    # This is only a startup primitive, not a complete engine offload strategy.
++    staging = torch.device(staging_device) if staging_device is not None else None
++    if staging is not None:
++        if staging.type != "cuda" or staging.index is None:
++            raise ValueError("staging_device must be an explicit CUDA device index")
++        if not torch.cuda.is_available() or staging.index >= torch.cuda.device_count():
++            raise ValueError("staging CUDA device is unavailable")
+     started = time.perf_counter()
+     path = Path(path).expanduser().resolve()
+     if not path.is_file():
+@@ -187,7 +197,9 @@
+         if len(devices) != 1:
+             raise RuntimeError(f"LoRA targets span multiple devices: {sorted(map(str, devices))}")
+         device = devices.pop()
+-        if device.type != "cuda":
++        if staging is not None and device.type != "cpu":
++            raise RuntimeError("staged fusion requires all adapter targets on CPU")
++        if staging is None and device.type != "cuda":
+             raise RuntimeError(
+                 "Refusing to fuse the adapter on CPU: the low-rank matrix products "
+                 "would make service startup impractically slow. Move the "
+@@ -206,16 +218,22 @@
+             applied_alpha = int(alpha)
+         multiplier = float(scale) * applied_alpha / rank
+         for module, a_key, b_key in validated:
+-            device, dtype = module.weight.device, module.weight.dtype
++            device, dtype = staging or module.weight.device, module.weight.dtype
++            weight = module.weight.to(device=device)
+             a = checkpoint.get_tensor(a_key).to(device=device, dtype=dtype)
+             b = checkpoint.get_tensor(b_key).to(device=device, dtype=dtype)
+-            module.weight.addmm_(b, a, beta=1.0, alpha=multiplier)
+-            del a, b
++            weight.addmm_(b, a, beta=1.0, alpha=multiplier)
++            if staging is not None:
++                # Blocking copy preserves Parameter identity and leaves no CUDA weight.
++                module.weight.copy_(weight)
++            del a, b, weight
+         for parameter, diff_key in validated_diffs:
+-            delta = checkpoint.get_tensor(diff_key).to(device=parameter.device)
+-            merged = parameter.float().add_(delta.float(), alpha=float(scale))
++            device = staging or parameter.device
++            weight = parameter.to(device=device)
++            delta = checkpoint.get_tensor(diff_key).to(device=device)
++            merged = weight.float().add_(delta.float(), alpha=float(scale))
+             parameter.copy_(merged.to(dtype=parameter.dtype))
+-            del delta, merged
++            del delta, merged, weight
+ 
+     gc.collect()
+     torch.cuda.empty_cache()

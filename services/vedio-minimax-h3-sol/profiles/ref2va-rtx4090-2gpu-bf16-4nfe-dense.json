@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "ref2va-rtx4090-2gpu-bf16-4nfe-dense",
+  "task": "ref2va",
+  "attention_backend": "dense",
+  "gpu_count": 2,
+  "compute_capability": 89,
+  "width": 1344,
+  "height": 768,
+  "fps": 24,
+  "scheduler_points": 5,
+  "nfe": 4,
+  "reference_image_resize_mode": "match",
+  "blocked_reason": "BLOCKED_4090_LOADING: upstream requires full rank-local BF16 CUDA residency and CUDA-only LoRA fusion; no validated offload patch",
+  "status": "blocked",
+  "memory_screen": "free VRAM must exceed all sealed safetensors bytes; necessary only, not a peak-memory guarantee"
+}

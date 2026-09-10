@@ -1,0 +1,119 @@
+--- a/h3_runtime/adaln.py
++++ b/h3_runtime/adaln.py
+@@ -97,6 +97,7 @@
+     audio_timesteps: torch.Tensor,
+     *,
+     include_audio_condition: bool = False,
++    staging_device: str | torch.device | None = None,
+ ) -> dict:
+     """Build every block's modulation table for the whole trajectory.
+ 
+@@ -108,7 +109,15 @@
+     if getattr(transformer, "_h3opt_adaln_cursor", None) is not None:
+         raise RuntimeError("AdaLN precompute is already installed on this transformer.")
+ 
+-    device = next(transformer.parameters()).device
++    staging = torch.device(staging_device) if staging_device is not None else None
++    if staging is not None:
++        if staging.type != "cuda" or staging.index is None:
++            raise ValueError("AdaLN staging requires an explicit CUDA device index")
++        if not torch.cuda.is_available() or staging.index >= torch.cuda.device_count():
++            raise ValueError("AdaLN staging CUDA device is unavailable")
++        if any(parameter.device.type != "cpu" for parameter in transformer.parameters()):
++            raise ValueError("AdaLN staging requires CPU-resident weights before offload hooks")
++    device = staging or next(transformer.parameters()).device
+     video_timesteps = video_timesteps.to(device)
+     audio_timesteps = audio_timesteps.to(device)
+     if video_timesteps.shape != audio_timesteps.shape:
+@@ -144,10 +153,20 @@
+     schedule_timesteps = [base_timesteps, conditioned_timesteps]
+     if include_audio_condition:
+         schedule_timesteps.append(audio_conditioned_timesteps)
+-    schedule_embeddings = [
+-        [_timestep_embedding(transformer, timesteps) for timesteps in schedule]
+-        for schedule in schedule_timesteps
+-    ]
++    # Embed every schedule while only the small timestep modules are on CUDA.
++    # Projection weights remain on CPU until their individual turn below.
++    try:
++        if staging is not None:
++            transformer.time_proj.to(staging)
++            transformer.time_embedder.to(staging)
++        schedule_embeddings = [
++            [_timestep_embedding(transformer, timesteps) for timesteps in schedule]
++            for schedule in schedule_timesteps
++        ]
++    finally:
++        if staging is not None:
++            transformer.time_proj.to("cpu")
++            transformer.time_embedder.to("cpu")
+ 
+     cursor = _StepCursor(device)
+     freed_bytes = 0
+@@ -171,14 +190,23 @@
+         projection = block.adaln_proj
+         # One GEMM per step and schedule variant at the reference's own shape keeps every
+         # live row bitwise identical to the unmodified projection.
+-        table = torch.stack(
+-            [
+-                torch.stack(
+-                    [padded(torch.cat(projection(temb), dim=-1)) for temb in embeddings]
+-                )
+-                for embeddings in schedule_embeddings
+-            ]
+-        )
++        try:
++            if staging is not None:
++                projection.to(staging)
++            table = torch.stack(
++                [
++                    torch.stack(
++                        [padded(torch.cat(projection(temb), dim=-1)) for temb in embeddings]
++                    )
++                    for embeddings in schedule_embeddings
++                ]
++            )
++            if staging is not None:
++                # Group offload hooks will be installed only after all replacements.
++                table = table.to("cpu")
++        finally:
++            if staging is not None:
++                projection.to("cpu")
+         table_bytes += table.numel() * table.element_size()
+ 
+         for parameter in projection.linear.parameters():
+@@ -203,6 +231,8 @@
+     verbose: bool = True,
+     *,
+     component_name: str = "transformer",
++    staging_device: str | torch.device | None = None,
++    after_precompute=None,
+ ) -> None:
+     """Arm the precompute: it fires when the pipeline enters its denoising loop.
+ 
+@@ -220,6 +250,11 @@
+         include_audio_condition = True
+     else:
+         raise ValueError(f"unsupported MiniMax-H3 transformer component: {component_name!r}")
++
++    if after_precompute is not None and not callable(after_precompute):
++        raise ValueError("after_precompute must be callable")
++    transformer._h3opt_adaln_staging_device = staging_device
++    transformer._h3opt_adaln_after_precompute = after_precompute
+ 
+     if getattr(loop_denoiser, "_h3opt_patched", False):
+         transformer._h3opt_adaln_wanted = True
+@@ -236,8 +271,13 @@
+                 block_state.timesteps,
+                 block_state.audio_timesteps,
+                 include_audio_condition=include_audio_condition,
++                staging_device=getattr(transformer_component, "_h3opt_adaln_staging_device", None),
+             )
+             transformer_component._h3opt_adaln_wanted = False
++            after = getattr(transformer_component, "_h3opt_adaln_after_precompute", None)
++            if after is not None:
++                after(transformer_component)
++                transformer_component._h3opt_adaln_after_precompute = None
+             if verbose:
+                 print(
+                     f"[h3opt.adaln] cached {stats['blocks']} blocks x {stats['steps']} steps: "

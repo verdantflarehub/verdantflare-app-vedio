@@ -1,0 +1,99 @@
+--- a/h3_runtime/engine.py
++++ b/h3_runtime/engine.py
+@@ -117,6 +117,7 @@
+         attention_backend: str = "sol_bsa",
+         task: str = "t2v",
+         reference_image_resize_mode: str = "match",
++        cpu_offload: bool = False,
+     ) -> None:
+         self._owns_process_group = False
+         local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+@@ -151,6 +152,12 @@
+                 "reference_image_resize_mode must be one of "
+                 f"{sorted(REFERENCE_IMAGE_RESIZE_MODES)}"
+             )
++        if cpu_offload:
++            if task != "ref2va" or attention_backend != "dense" or self.world_size != 2:
++                raise ValueError("experimental CPU offload requires Ref2VA dense on exactly two GPUs")
++            if torch.cuda.get_device_capability(self.device) != (8, 9):
++                raise ValueError("experimental CPU offload is restricted to SM89")
++        self.cpu_offload = bool(cpu_offload)
+         self.task = task
+         self.attention_backend = attention_backend
+         self.reference_image_resize_mode = reference_image_resize_mode
+@@ -199,7 +206,11 @@
+                 f"failed to load {component} from {model_path!r}; "
+                 f"make sure {component}/config.json and all checkpoint shards exist"
+             )
+-        self.pipe.to(self.device)
++        if not self.cpu_offload:
++            self.pipe.to(self.device)
++        else:
++            if any(p.device.type != "cpu" for p in self.transformer.parameters()):
++                raise RuntimeError("experimental loader must start with CPU-resident weights")
+         self.pipe.scheduler.set_shift(12.0)
+         self.pipe.audio_scheduler.set_shift(3.0)
+ 
+@@ -210,6 +221,7 @@
+             adapter_path,
+             alpha=8 if task == "ref2va" else 64,
+             scale=1.0,
++            staging_device=self.device if self.cpu_offload else None,
+         )
+ 
+         if self.world_size > 1:
+@@ -229,10 +241,20 @@
+         from . import adaln, fusion_install, sparse_attention, ulysses, vae_parallel
+ 
+         fusion_install.install(self.transformer)
++        def offload_transformer(component):
++            from diffusers.hooks import apply_group_offloading
++            apply_group_offloading(
++                component, onload_device=self.device, offload_device=torch.device("cpu"),
++                offload_type="block_level", num_blocks_per_group=1,
++                non_blocking=False, use_stream=False,
++            )
++
+         adaln.enable_adaln_precompute(
+             self.transformer,
+             verbose=self.rank == 0,
+             component_name="transformer_ref" if task == "ref2va" else "transformer",
++            staging_device=self.device if self.cpu_offload else None,
++            after_precompute=offload_transformer if self.cpu_offload else None,
+         )
+         self.sparse_attention = None
+         if attention_backend != "dense":
+@@ -251,10 +273,31 @@
+             )
+         vae_parallel.install(
+             self.pipe.vae,
+-            batched=True,
+-            compile_mode="default",
++            batched=not self.cpu_offload,
++            compile_mode=None if self.cpu_offload else "default",
++            global_batch=False if self.cpu_offload else None,
+             encode_parallel=task == "ref2va",
+         )
++        if self.cpu_offload:
++            from diffusers.hooks import apply_group_offloading
++            def group_offload(module, block_modules=None):
++                apply_group_offloading(
++                    module, onload_device=self.device, offload_device=torch.device("cpu"),
++                    offload_type="block_level", num_blocks_per_group=1,
++                    block_modules=block_modules, non_blocking=False, use_stream=False,
++                )
++            # Qwen3-VL can call embed_tokens directly before language_model.forward.
++            # Explicit recursion gives embeddings their own hook instead of a parent-only hook.
++            group_offload(self.pipe.text_encoder,
++                          ["model", "visual", "language_model", "embed_tokens", "lm_head"])
++            # encode/decode bypass VAE.forward: install on the computational entry modules.
++            for name in ("encoder", "decoder", "quant_conv", "post_quant_conv"):
++                module = getattr(self.pipe.vae, name)
++                group_offload(module)
++            # The small audio VAE stays on CUDA; it is not the 33B/32B resident component.
++            self.pipe.audio_vae.to(self.device)
++            if self.pipe._execution_device != self.device:
++                raise RuntimeError("pipeline failed to resolve the offload execution device")
+         self._adaln_checked = False
+ 
+     @property

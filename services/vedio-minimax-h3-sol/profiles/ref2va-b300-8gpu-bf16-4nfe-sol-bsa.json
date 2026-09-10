@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "ref2va-b300-8gpu-bf16-4nfe-sol-bsa",
+  "task": "ref2va",
+  "attention_backend": "sol_bsa",
+  "gpu_count": 8,
+  "compute_capability": 103,
+  "width": 1344,
+  "height": 768,
+  "fps": 24,
+  "scheduler_points": 5,
+  "nfe": 4,
+  "reference_image_resize_mode": "match",
+  "blocked_reason": null,
+  "status": "upstream-reference-only-not-locally-validated",
+  "memory_screen": "free VRAM must exceed all sealed safetensors bytes; necessary only, not a peak-memory guarantee"
+}

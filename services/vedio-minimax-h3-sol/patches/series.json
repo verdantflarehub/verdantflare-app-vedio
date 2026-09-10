@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "upstream_revision": "2936c47637380842aaa4a4488fac5006cc542b70",
+  "scope": "Experimental Ref2VA CPU offload and portrait output; full generation validation pending",
+  "patches": [
+    {
+      "file": "0001-stage-lora-on-cuda.patch",
+      "sha256": "b5e071e2ed77743d0bd563bbbae86e15130ecdaab66a3b14879a60a55daa826b",
+      "source": "h3_runtime/lora.py",
+      "before_sha256": "0e8222b76e086f8f100092e325a08e86bfc8bd33fb404c8b8b0cdd4d3d56362c",
+      "after_sha256": "863cd7a22a06336b610f7f6421f2ce0ea85b774b3e0dce56e6f6930050681f1d"
+    },
+    {
+      "file": "0002-stage-adaln-before-offload.patch",
+      "sha256": "c1bbe17d2643e71538386e3f4aa3c5c2cf5f1d1508f945a0895684508dfc32b7",
+      "source": "h3_runtime/adaln.py",
+      "before_sha256": "e00e1a0b8b79777761ec75c860b1d3219fa4f747cb1e1289b75988dec275e6aa",
+      "after_sha256": "8d2c6517ec3fbc2ed1a1975e0b357a11dca826bff9402fe0eb049f0455b63f85"
+    },
+    {
+      "file": "0003-integrate-ref2va-cpu-offload.patch",
+      "sha256": "7b60e6e4fe35645a70a15dbd719412ef5a22096e0ae50140b8da4d882be9ac6c",
+      "source": "h3_runtime/engine.py",
+      "before_sha256": "923fdb1b92d6aa2d678faabbdd01bd887d1c1f4b0e714059574b7f50f2ac3212",
+      "after_sha256": "db6e0d1bc2fc33917ae28f55edaa649ee1c2778f2b93420c70a2c1e3f5a20118"
+    },
+    {
+      "file": "0004-support-portrait-output.patch",
+      "sha256": "3b522c79d777b3825808effbbc735f2e49524b99f4be620fcb9de1f796dcc5a6",
+      "source": "h3_runtime/engine.py",
+      "before_sha256": "db6e0d1bc2fc33917ae28f55edaa649ee1c2778f2b93420c70a2c1e3f5a20118",
+      "after_sha256": "d9016f32eaab1320c71664c7f934e39249c2705d9e89b41733612f388be2df72"
+    }
+  ]
+}

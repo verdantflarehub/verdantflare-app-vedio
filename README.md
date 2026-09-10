@@ -1,72 +1,48 @@
 # VerdantFlare App Vedio
 
-VerdantFlare App Vedio 是部署在 VerdantFlare Station 上的视频生成应用套件。仓库名及工程资源沿用 `vedio` 拼写；面向用户的领域名称、MCP 工具和媒体类型使用标准的 `video` 拼写。
+视频应用的代码与镜像构建仓库。统一分开使用 **H3**、**H3-Sol**、**MCP** 三个名称。
 
-## 项目职责
+| 名称 | 工程 | 当前交付 |
+| --- | --- | --- |
+| H3 | `services/vedio-minimax-h3-api` | 原版推理服务，已部署 `vedio-minimax-h3-api-v0.3.0` |
+| H3-Sol | `services/vedio-minimax-h3-sol` | Sol 优化实验工程，本次通过流水线发布 `vedio-minimax-h3-sol-v0.1.1`；尚未接入 MCP |
+| MCP | `services/vedio-mcp-server` | 统一调用入口及 Dashboard，已部署 `vedio-mcp-server-v0.2.0` |
 
-本仓库负责 MiniMax H3 Ref2VA 运行时、验证基准和 Video MCP：
+H3-Sol 的既有双卡实验出片与人工质量限制，以中央设计记录为准。实验镜像可追溯发布不等于热启动服务、生产接入或质量验收完成。H3、H3-Sol 的后续模型服务不使用 Kubernetes Job，分别复用各自模型进程；MCP 不加载模型。
 
-| 服务 | 职责 |
-| --- | --- |
-| `vedio-mcp-server` | 导入项目素材、提交视频任务、查询状态并持久化视频 Artifact。 |
-| `vedio-minimax-h3-api` | 提供 MiniMax H3 Base Ref2VA 异步视频生成 API。 |
-| `vedio-minimax-h3-sglang-benchmark` | 验证 SGLang、Full INT8 和 RTX 4090 运行配置。 |
-| `vedio-minimax-h3-lightx2v-benchmark` | 验证 LightX2V Turbo Ref2VA 配置。 |
-
-Video MCP 暴露以下 v1 工具：
+## 目录与事实源
 
 ```text
-artifact.import
-video.generate
-video.status
-video.result
+.github/workflows/
+services/
+  vedio-minimax-h3-api/
+  vedio-minimax-h3-sol/
+  vedio-mcp-server/
 ```
 
-MCP 只返回项目范围的任务 ID、Artifact ID、媒体元数据和下载地址，不返回运行时任务 ID、集群内部地址、节点、GPU 或宿主机路径。模型、输入素材和生成视频均保存在持久化存储中，不进入镜像或 Git。
+设计、接口与部署清单统一维护在 [verdantflare-design](https://github.com/verdantflarehub/verdantflare-design/tree/dev)：
 
-## 仓库结构
+- [Dashboard 设计、接口与发布验收](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/vedio/dashboard.md)
+- [H3-Sol 设计与实验历史](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/vedio/minimax-h3/minimax-h3-sol.md)
+- [H3 / H3-Sol 热启动需求](https://github.com/verdantflarehub/verdantflare-design/blob/dev/changes/change_20260910_h3_sol_warm_start_optimization.md)
+- [中央部署清单](https://github.com/verdantflarehub/verdantflare-design/tree/dev/deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare-vedio)
 
-```text
-.
-├── .github/workflows/
-└── services/
-    ├── vedio-mcp-server/
-    ├── vedio-minimax-h3-api/
-    ├── vedio-minimax-h3-sglang-benchmark/
-    └── vedio-minimax-h3-lightx2v-benchmark/
-```
+应用仓库不维护私有 `docs/`、`deploy/` 或 `deploys/`。旧 SGLang / LightX2V benchmark 源码和 workflow 从活动目录移除，保留在 [整理前的 Git 历史](https://github.com/verdantflarehub/verdantflare-app-vedio/tree/45299cb7da82ab98c283c59ed69590b2d3d011d5)。不依赖已经不存在的 `archive/` 目录；源码移除不删除旧镜像、共享模型或用户产物。
 
-工程、镜像、Workflow 和 Kubernetes 资源统一使用 `vedio-` 前缀。当前版本镜像为：
-
-| 服务 | 镜像 tag |
-| --- | --- |
-| `vedio-mcp-server` | `vedio-mcp-server-v0.1.4` |
-| `vedio-minimax-h3-api` | `vedio-minimax-h3-api-v0.3.0` |
-| `vedio-minimax-h3-sglang-benchmark` | `vedio-minimax-h3-sglang-benchmark-v0.1.7` |
-| `vedio-minimax-h3-lightx2v-benchmark` | `vedio-minimax-h3-lightx2v-benchmark-v0.1.1` |
-
-版本标签不可覆盖。发布流水线仅在 `release` 分支触发，生产部署不得使用 `latest` 或 SHA 标签。
-
-迁移引导基础镜像 `vedio-minimax-h3-api-v0.1.1` 从已验证的原 H3 基础镜像原样复制，其 linux/amd64 manifest digest 为 `sha256:8970ad335fe07638d39ab75e1b623d2a68d67b8f04efa083806cc6178adf9855`；后续 H3 构建链只引用 `vedio-` 名称。
-
-## 成都验证环境
-
-最终声明式资源统一保存在 `verdantflare-design/deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare-vedio/`，不在本应用仓库维护；部署使用独立 namespace `verdantflare-vedio`。H3 Runtime 固定调度到 `10.241.109.6`，由 `hami-scheduler` 申请两张不同的完整 RTX 4090，并以 TP2 执行单任务。迁移期间，模型通过 Retain、只读静态 PV 复用节点上已经验证的 H3 模型目录；新的视频项目数据使用独立的 `hostpath` PVC。旧 namespace 的 PVC 和工作负载必须保留到新服务完成真实验收并确认清理目标之后；删除旧模型 PVC 前还必须先把它所绑定 PV 的回收策略改为 `Retain`，否则旧 PV 的 `Delete` 策略会删除共享模型目录。
-
-部署前必须重新确认节点 Ready、完整 GPU、驱动、`hostpath` StorageClass、`/data` 容量、所需镜像以及 `vedio-mcp-auth` Secret。不得输出 Secret 内容。公网入口为：
-
-```text
-POST https://mcp.cn-chengdu.bc-cloud.com/video
-```
-
-客户端从安全环境注入 Token 后注册：
+## 本地检查与发布
 
 ```bash
-codex mcp add verdantflare-video \
-  --url https://mcp.cn-chengdu.bc-cloud.com/video \
-  --bearer-token-env-var VIDEO_MCP_BEARER_TOKEN
+python3 -m unittest discover -s services/vedio-minimax-h3-sol/tests -v
+python3 -m pip install -r services/vedio-mcp-server/requirements.txt
+PYTHONPATH=services/vedio-mcp-server python3 -m unittest discover -s services/vedio-mcp-server/tests -v
 ```
 
-公网只路由 MCP 和受保护的 Artifact 下载，不发布 `/health` 或 `/runtime-artifacts/`。流水线、镜像、滚动部署、真实 GPU 推理和人工视频审核全部完成后，才能将版本标记为已发布并通过验收。
+日常提交至 `dev`，测试通过后只以 `--ff-only` 合并至 `release` 并推送，触发服务自己的镜像流水线，然后切回 `dev`。镜像使用不可覆盖的语义化版本；本地构建和临时挂载不能作为发布证据。H3-Sol 的 CI 执行 CPU 契约、分配校验、官方来源及补丁校验，构建中再检查引擎导入，只有 `release` 推送才发布镜像。
 
-MiniMax H3 不是 Apache/MIT 模型。向第三方开放前必须完成模型许可证要求的地域、用户条款、内容治理、报告、披露和界面归因检查。
+## MCP 与工作台
+
+MCP 保持 `artifact.import`、`video.generate`、`video.status`、`video.result` 契约。Dashboard 使用真实任务数据，支持素材导入、提交、筛选、缩略图、视频回放和下载；H3-Sol 尚未接入时显示“未接入”，不静默回退。
+
+以中央部署公布的地址访问 `/video/dashboard`。数据接口及产物下载使用现有 Bearer Token；浏览器仅在页面内存保存 Token。内部 `/runtime-artifacts/` 不公开。工具不暴露内部 Runtime Task ID、服务地址或宿主路径。
+
+H3-Sol 部署、真实冷 / 热推理对比和人工质量审核仍按中央变更记录执行，未完成前不推进 `main`。
