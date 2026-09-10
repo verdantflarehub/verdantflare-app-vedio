@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VerdantFlare Video Station · H3 / H3-Sol / MCP</title>
+    <link rel="stylesheet" href="./dashboard/static/dashboard.css" />
+    <script src="./dashboard/static/dashboard.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="nav">
+        <a class="brand" href="#"
+          ><span class="brand-mark"></span><span>VerdantFlare</span
+          ><span class="brand-tag">VIDEO STATION</span></a
+        >
+        <div class="nav-actions">
+          <a href="/dashboard" class="button">← 返回 Studio 全景</a
+          ><span class="pill-badge" id="pollState">等待连接</span
+          ><button class="button primary" data-action="dispatch">
+            ＋ 新建运镜任务</button
+          ><button class="button" id="tokenButton" data-action="token">
+            Token：未配置
+          </button>
+        </div>
+      </div>
+    </header>
+    <main class="market-page">
+      <section class="market-hero">
+        <div class="market-wrap market-hero-grid">
+          <div>
+            <p class="market-kicker">
+              VERDANTFLARE VIDEO STATION · FLEET OBSERVABILITY
+            </p>
+            <h1>MiniMax H3 动态长镜头视频工作台</h1>
+            <p>
+              H3 与 H3-Sol 分别提供视频推理服务，MCP
+              统一管理任务与产物。从参考素材到连续运镜，在这里提交、追踪与回放每一次创作。
+            </p>
+            <div class="service-row" id="serviceStates">
+              <span class="pill-badge">H3 · 待连接</span
+              ><span class="pill-badge">H3-Sol · 未接入</span
+              ><span class="pill-badge">MCP · 待连接</span>
+            </div>
+            <div class="actions">
+              <button class="button primary" data-action="dispatch">
+                立即提交长镜头任务</button
+              ><button class="button" data-action="refresh">
+                刷新实时队列
+              </button>
+            </div>
+          </div>
+          <div class="market-orbit">
+            <span>RUNNING VIDEO TASKS</span><strong id="orbitRunning">—</strong
+            ><small
+              >当前筛选范围内正在渲染的任务。任务完成后可检查参考素材、回放视频并下载产物。</small
+            >
+          </div>
+        </div>
+        <div class="market-wrap">
+          <div class="metrics-row">
+            <div class="metric-card">
+              <div class="metric-card-label">
+                <span>排队等待池</span><span>QUEUED</span>
+              </div>
+              <div class="metric-card-val" id="metricQueued">—</div>
+              <div class="metric-card-foot">等待推理服务执行</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-card-label">
+                <span>正在渲染中</span><span>RUNNING</span>
+              </div>
+              <div class="metric-card-val" id="metricRunning">—</div>
+              <div class="metric-card-foot">按实际任务状态更新</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-card-label">
+                <span>今日完成镜头</span><span>COMPLETED</span>
+              </div>
+              <div class="metric-card-val" id="metricCompleted">—</div>
+              <div class="metric-card-foot">按本地日期统计，待人工审核</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-card-label">
+                <span>失败任务</span><span>FAILED</span>
+              </div>
+              <div class="metric-card-val" id="metricFailed">—</div>
+              <div class="metric-card-foot">打开详情查看错误</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-card-label">
+                <span>平均处理耗时</span><span>AVG LATENCY</span>
+              </div>
+              <div class="metric-card-val" id="metricLatency">—</div>
+              <div class="metric-card-foot">已完成任务，包含排队</div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="market-wrap">
+        <div id="notice" class="notice" role="status">
+          请设置 Token 以连接 MCP。
+        </div>
+        <div class="market-toolbar">
+          <label class="market-search"
+            ><span>PROMPT / TASK ID 快速查找</span
+            ><input
+              type="search"
+              id="searchInput"
+              placeholder="搜索任务编号、提示词或项目…"
+          /></label>
+          <div class="market-selects">
+            <label
+              ><span>推理服务</span
+              ><select id="filterEngine">
+                <option value="all">全部服务</option>
+                <option value="h3">H3</option>
+                <option value="h3-sol">H3-Sol</option>
+              </select></label
+            ><label
+              ><span>所属项目</span
+              ><select id="filterProject">
+                <option value="all">全部项目</option>
+              </select></label
+            >
+          </div>
+          <div class="view-switcher">
+            <button id="btnViewGallery" class="active" data-view="gallery">
+              画廊模式</button
+            ><button id="btnViewTable" data-view="table">工单表格</button>
+          </div>
+        </div>
+        <div class="market-filter-row" id="statusFilters">
+          <button class="active" data-status="all">全部状态</button
+          ><button data-status="queued">⏳ 排队中</button
+          ><button data-status="running">⚡ 渲染中</button
+          ><button data-status="succeeded">✓ 已完成</button
+          ><button data-status="failed">✕ 失败</button
+          ><button data-status="cancelled">已取消</button>
+        </div>
+        <div id="emptyState" class="empty">连接后显示真实任务。</div>
+        <div id="galleryContainer" class="model-results grid"></div>
+        <div id="tableContainer" class="table-container hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>项目 / 镜头</th>
+                <th>任务 ID</th>
+                <th>推理服务</th>
+                <th>Prompt</th>
+                <th>时长 / 规格</th>
+                <th>处理耗时</th>
+                <th>状态</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="taskRows"></tbody>
+          </table>
+        </div>
+        <div class="pager">
+          <button class="button" id="prevPage">上一页</button
+          ><span id="pageLabel">0 个任务</span
+          ><button class="button" id="nextPage">下一页</button>
+        </div>
+      </section>
+    </main>
+    <div
+      id="tokenModal"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tokenTitle"
+      hidden
+    >
+      <div class="modal-window">
+        <div class="modal-head">
+          <strong id="tokenTitle">连接 MCP</strong
+          ><button class="button" data-close="tokenModal">关闭</button>
+        </div>
+        <form id="tokenForm" class="dialog-body">
+          <div class="form-grid">
+            <label class="full"
+              >访问 Token<input
+                id="tokenInput"
+                type="password"
+                autocomplete="off"
+                required
+            /></label>
+          </div>
+          <p>Token 仅在当前页面内存中使用，刷新或关闭页面后清除。</p>
+          <div class="actions">
+            <button class="button primary" type="submit">连接</button
+            ><button class="button" type="button" id="clearToken">
+              清除 Token
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div
+      id="dispatchModal"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dispatchTitle"
+      hidden
+    >
+      <div class="modal-window">
+        <div class="modal-head">
+          <strong id="dispatchTitle">新建运镜任务</strong
+          ><button class="button" data-close="dispatchModal">关闭</button>
+        </div>
+        <form id="dispatchForm" class="dialog-body">
+          <div class="form-grid">
+            <label
+              >项目 ID<input
+                name="project_id"
+                required
+                maxlength="64"
+                pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,63}"
+                placeholder="creator-demo" /></label
+            ><label
+              >推理服务<select name="service">
+                <option value="h3">H3</option>
+                <option value="h3-sol" disabled>H3-Sol · 未接入</option>
+              </select></label
+            ><label class="full"
+              >镜头 / Attempt 幂等键<input
+                name="idempotency_key"
+                id="attemptInput"
+                required
+                maxlength="128" /></label
+            ><label class="full"
+              >动态运镜 Prompt<textarea
+                name="prompt"
+                rows="4"
+                maxlength="16000"
+                required
+                placeholder="描述已确认的镜头、人物动作和连续运镜…"
+              ></textarea></label
+            ><label
+              >时长（秒）<input
+                name="duration_seconds"
+                type="number"
+                min="4"
+                max="15"
+                value="5"
+                required /></label
+            ><label
+              >画幅<select name="aspect_ratio">
+                <option value="9:16">9:16 · 竖屏</option>
+              </select></label
+            ><label class="full"
+              >参考素材（每行：类型 | Artifact ID | 用途）<textarea
+                name="references"
+                id="referenceInput"
+                rows="4"
+                required
+                placeholder="image | art_… | identity&#10;video | art_… | motion&#10;audio | art_… | rhythm"
+              ></textarea>
+            </label>
+          </div>
+          <p>
+            至少一张图片或一段视频。H3 当前使用固定 seed 7、24
+            FPS；参考素材需先登记到同一项目。
+          </p>
+          <div class="actions">
+            <button class="button" type="button" id="openImport">
+              导入参考素材</button
+            ><button class="button primary" type="submit" id="submitTask">
+              提交任务
+            </button>
+          </div>
+          <p id="dispatchMessage" role="status"></p>
+        </form>
+      </div>
+    </div>
+    <div
+      id="importModal"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="importTitle"
+      hidden
+    >
+      <div class="modal-window">
+        <div class="modal-head">
+          <strong id="importTitle">导入参考素材</strong
+          ><button class="button" data-close="importModal">关闭</button>
+        </div>
+        <form id="importForm" class="dialog-body">
+          <div class="form-grid">
+            <label>项目 ID<input name="project_id" required /></label
+            ><label
+              >文件名<input
+                name="filename"
+                required
+                placeholder="reference.png" /></label
+            ><label class="full"
+              >受支持的 HTTPS 素材地址<input
+                name="source_url"
+                type="url"
+                required /></label
+            ><label class="full"
+              >文件 SHA-256<input
+                name="expected_sha256"
+                required
+                pattern="[0-9a-fA-F]{64}"
+                minlength="64"
+                maxlength="64"
+            /></label>
+          </div>
+          <p>仅允许服务已配置的素材来源；导入时检查文件完整性。</p>
+          <div class="actions">
+            <button class="button primary" type="submit">校验并导入</button>
+          </div>
+          <p id="importMessage" role="status"></p>
+        </form>
+      </div>
+    </div>
+    <div
+      id="inspectorModal"
+      class="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalShotTitle"
+      hidden
+    >
+      <div class="modal-window">
+        <div class="modal-head">
+          <strong id="modalShotTitle">任务详情与视频回放</strong
+          ><button class="button" data-close="inspectorModal">关闭</button>
+        </div>
+        <div class="dialog-body" id="inspectorBody"></div>
+      </div>
+    </div>
+  </body>
+</html>

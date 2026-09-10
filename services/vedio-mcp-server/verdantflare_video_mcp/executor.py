@@ -7,6 +7,8 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
+from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -28,8 +30,17 @@ class ExecutionError(RuntimeError):
     pass
 
 
+def serialized(method):
+    @wraps(method)
+    def invoke(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return invoke
+
+
 class VideoExecutor:
     def __init__(self, artifacts: ArtifactStore, tasks: TaskStore, client: httpx.Client | None = None) -> None:
+        self._lock = threading.RLock()
         self.artifacts = artifacts
         self.tasks = tasks
         self.runtime_url = os.environ.get("H3_RUNTIME_URL", "http://vedio-minimax-h3-api:8000").rstrip("/")
@@ -90,6 +101,7 @@ class VideoExecutor:
         canonical = json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return request, "sha256:" + hashlib.sha256(canonical.encode()).hexdigest()
 
+    @serialized
     def generate(self, *, project_id: str, idempotency_key: str, model: str, prompt: str,
                  duration_seconds: int, aspect_ratio: str,
                  references: dict[str, list[dict[str, str]]]) -> TaskRecord:
@@ -118,21 +130,27 @@ class VideoExecutor:
                    "target": {"short_edge": 768, "aspect_ratio": aspect_ratio, "duration_seconds": float(duration_seconds)},
                    "num_outputs_per_prompt": 1, "num_inference_steps": 21, "flow_shift": 12.0,
                    "audio_flow_shift": 3.0, "seed": 7}
+        # Persist the attempt before calling the runtime. An ambiguous network
+        # failure must not permit a duplicate GPU request under the same key.
+        reserved = self.tasks.create(project_id=project_id, idempotency_key=idempotency_key,
+                                     input_digest=digest, request=request, runtime_task_id="", status="queued")
         try:
             response = self.client.post(f"{self.runtime_url}/v1/videos", json=payload)
             response.raise_for_status()
             runtime_task_id = response.json()["id"]
         except (httpx.HTTPError, KeyError, ValueError) as error:
+            self.tasks.update(reserved, status="failed", error={"code": "submission_unconfirmed",
+                              "message": "Runtime submission could not be confirmed; do not resubmit automatically"})
             raise ExecutionError("H3 runtime submission failed") from error
-        return self.tasks.create(project_id=project_id, idempotency_key=idempotency_key,
-                                 input_digest=digest, request=request, runtime_task_id=runtime_task_id, status="queued")
+        return self.tasks.update(reserved, runtime_task_id=runtime_task_id)
 
+    @serialized
     def status(self, video_task_id: str) -> TaskRecord:
         record = self.tasks.get(video_task_id)
         if record.status in {"succeeded", "failed", "cancelled"}:
             return record
         try:
-            response = self.client.get(f"{self.runtime_url}/v1/videos/{record.runtime_task_id}")
+            response = self.client.get(f"{self.runtime_url}/v1/videos/{record.runtime_task_id}", timeout=10)
             if response.status_code == 404:
                 return self.tasks.update(record, status="failed", error={
                     "code": "runtime_task_lost",
@@ -149,6 +167,7 @@ class VideoExecutor:
         error = {"code": "runtime_failed", "message": "H3 generation failed"} if mapped == "failed" else None
         return self.tasks.update(record, status=mapped, error=error)
 
+    @serialized
     def result(self, video_task_id: str) -> TaskRecord:
         record = self.status(video_task_id)
         if record.status != "succeeded":

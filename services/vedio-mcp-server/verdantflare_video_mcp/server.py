@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hmac
 import json
+import logging
 import os
 
 from mcp import types
@@ -16,11 +18,15 @@ from starlette.routing import Mount, Route
 
 from .artifacts import ArtifactError, ArtifactNotFound, ArtifactStore
 from .executor import ExecutionError, VideoExecutor
+from .dashboard import Dashboard
 from .tasks import TaskConflict, TaskNotFound, TaskStore
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 artifacts = ArtifactStore.from_environment()
 tasks = TaskStore.from_environment()
 executor = VideoExecutor(artifacts, tasks)
+dashboard = Dashboard(executor)
 mcp = MCPServer("VerdantFlare Video")
 
 
@@ -88,7 +94,15 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if request.url.path == "/health" or request.url.path.startswith("/runtime-artifacts/"):
             return await call_next(request)
+        if request.url.path in {"/dashboard", "/dashboard/"} or request.url.path.startswith("/dashboard/static/"):
+            response = await call_next(request)
+            response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
         token = os.environ.get("VIDEO_MCP_BEARER_TOKEN", "").strip()
+        if request.url.path.startswith("/api/") and not token:
+            return JSONResponse({"error": "authentication_not_configured"}, status_code=503)
         if token and not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {token}"):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
         return await call_next(request)
@@ -98,10 +112,17 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
 async def lifespan(app: Starlette):
     artifacts.ensure_ready(); tasks.ensure_ready()
     async with mcp.session_manager.run():
-        yield
+        dashboard.recover_incomplete_submissions()
+        poller = asyncio.create_task(dashboard.poll())
+        try:
+            yield
+        finally:
+            poller.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await poller
 
 
-app = Starlette(routes=[Route("/health", health),
+app = Starlette(routes=[*dashboard.routes(), Route("/health", health),
                         Route("/artifacts/{artifact_id:str}/content", artifact_content),
                         Route("/runtime-artifacts/{artifact_id:str}/content", artifact_content),
                         Mount("/", app=mcp.streamable_http_app(json_response=True, stateless_http=True,

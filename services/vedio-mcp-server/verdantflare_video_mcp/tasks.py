@@ -32,6 +32,7 @@ class TaskRecord(BaseModel):
     status: str
     created_at: str
     updated_at: str
+    completed_at: str | None = None
     artifact_id: str | None = None
     media: dict[str, object] | None = None
     error: dict[str, str] | None = None
@@ -94,7 +95,13 @@ class TaskStore:
         return TaskRecord.model_validate_json(path.read_text(encoding="utf-8"))
 
     def update(self, record: TaskRecord, **values: object) -> TaskRecord:
-        updated = record.model_copy(update={**values, "updated_at": datetime.now(UTC).isoformat()})
+        now = datetime.now(UTC).isoformat()
+        if not record.completed_at:
+            if record.status in {"succeeded", "failed", "cancelled"}:
+                values["completed_at"] = record.updated_at
+            elif values.get("status") in {"succeeded", "failed", "cancelled"}:
+                values["completed_at"] = now
+        updated = record.model_copy(update={**values, "updated_at": now})
         self._write(updated)
         return updated
 

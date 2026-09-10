@@ -1,0 +1,120 @@
+"""Browser integration using isolated fixtures, never GPU acceptance inputs."""
+from __future__ import annotations
+
+import os
+import hashlib
+import socket
+import subprocess
+import tempfile
+import threading
+import time
+from pathlib import Path
+
+import httpx
+import uvicorn
+from playwright.sync_api import sync_playwright, expect
+from starlette.applications import Starlette
+from starlette.responses import FileResponse
+from starlette.routing import Route
+
+from verdantflare_video_mcp.artifacts import ArtifactStore
+from verdantflare_video_mcp.dashboard import Dashboard
+from verdantflare_video_mcp.executor import VideoExecutor
+from verdantflare_video_mcp.tasks import TaskStore
+
+
+def main():
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        os.environ['VIDEO_ARTIFACT_ROOT'] = str(root)
+        os.environ['VIDEO_MCP_BEARER_TOKEN'] = 'browser-test-token'
+        from verdantflare_video_mcp.server import BearerAuthMiddleware
+        artifacts, tasks = ArtifactStore(root), TaskStore(root)
+        video = root/'fixture.mp4'
+        subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i','color=c=darkgreen:s=240x420:r=24',
+                        '-t','5','-c:v','libx264','-pix_fmt','yuv420p',str(video)], check=True)
+        image = root/'fixture.png'
+        subprocess.run(['ffmpeg','-v','error','-i',str(video),'-frames:v','1',str(image)], check=True)
+        reference = artifacts.create_from_chunks(project_id='demo', operation='test', filename='reference.png', media_type='image/png', chunks=[image.read_bytes()])
+        result = artifacts.create_from_chunks(project_id='demo', operation='test', filename='fixture.mp4', media_type='video/mp4', chunks=[video.read_bytes()])
+        for i in range(27):
+            record = tasks.create(project_id='demo', idempotency_key=f'shot-{i:02d}/attempt-1',
+                                 input_digest='sha256:test', runtime_task_id=f'private-{i}', status='succeeded' if i == 26 else 'queued',
+                                 request={'prompt':'Continuous orbit <img src=x onerror=alert(1)>', 'model':'minimax-h3-ref2va',
+                                          'duration_seconds':5,'aspect_ratio':'9:16','references':{'images':[{'artifact_id':reference.artifact_id,'purpose':'identity'}]}})
+            if i == 26:
+                tasks.update(record, artifact_id=result.artifact_id, media={'frame_rate':24,'width':240,'height':420})
+        executor = VideoExecutor(artifacts,tasks,httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200,content=image.read_bytes()) if r.method == 'GET' else httpx.Response(200,json={'id':'test-submission'}))))
+        executor.allowed_origins = frozenset({'https://assets.example.com'})
+        dashboard = Dashboard(executor)
+        dashboard.services['h3'] = 'ready'
+        async def content(request):
+            artifact = artifacts.get(request.path_params['artifact_id'])
+            return FileResponse(artifacts.content_path(artifact),media_type=artifact.media_type)
+        app = Starlette(routes=[*dashboard.routes(),Route('/artifacts/{artifact_id}/content',content)])
+        app.add_middleware(BearerAuthMiddleware)
+        async def ingress(scope, receive, send):
+            if scope['type'] == 'http' and scope['path'].startswith('/video/'):
+                scope = dict(scope, path=scope['path'][6:], raw_path=scope['raw_path'][6:])
+            await app(scope, receive, send)
+        sock = socket.socket(); sock.bind(('127.0.0.1',0)); port = sock.getsockname()[1]
+        server = uvicorn.Server(uvicorn.Config(ingress, log_level='error'))
+        thread = threading.Thread(target=server.run,kwargs={'sockets':[sock]},daemon=True); thread.start()
+        try:
+            for _ in range(100):
+                if server.started: break
+                time.sleep(.05)
+            with sync_playwright() as p:
+                browser = p.chromium.launch(args=['--no-sandbox'])
+                page = browser.new_page(viewport={'width':1440,'height':1000})
+                errors=[]; page.on('pageerror',lambda error: errors.append(str(error)))
+                page.goto(f'http://127.0.0.1:{port}/video/dashboard/')
+                expect(page.locator('h1')).to_contain_text('动态长镜头')
+                page.locator('#tokenButton').click(); page.locator('#tokenInput').fill('browser-test-token'); page.locator('#tokenForm button[type=submit]').click()
+                expect(page.locator('#pageLabel')).to_contain_text('27 个任务')
+                expect(page.locator('#serviceStates')).to_contain_text('H3-Sol · 未接入')
+                expect(page.locator('.model-card')).to_have_count(24)
+                expect(page.locator('.model-card img').first).to_be_visible(timeout=15000)
+                page.locator('#nextPage').click(); expect(page.locator('.model-card')).to_have_count(3)
+                page.locator('#prevPage').click(); expect(page.locator('.model-card')).to_have_count(24)
+                page.locator('#searchInput').fill('shot-26'); expect(page.locator('.model-card')).to_have_count(1)
+                page.locator('#btnViewTable').click(); expect(page.locator('#tableContainer')).to_be_visible()
+                page.locator('#taskRows button').click(); expect(page.locator('#inspectorBody')).to_contain_text('Continuous orbit <img')
+                page.get_by_role('button',name='加载视频回放').click()
+                expect(page.locator('#videoArea video')).to_be_visible(); page.wait_for_function('document.querySelector("#videoArea video")?.readyState >= 2')
+                page.locator('#videoArea video').evaluate('(v) => v.play()'); page.wait_for_function('document.querySelector("#videoArea video").currentTime > 0')
+                expect(page.locator('#resultActions a')).to_have_attribute('download','fixture.mp4')
+                page.keyboard.press('Escape'); page.locator('#searchInput').fill(''); expect(page.locator('#taskRows tr')).to_have_count(24)
+                page.locator('#btnViewGallery').click()
+                output = Path(os.environ.get('BROWSER_OUTPUT_DIR','/tmp/vedio-dashboard-browser')); output.mkdir(parents=True, exist_ok=True)
+                page.evaluate('window.scrollTo({top:0,behavior:"instant"})')
+                page.screenshot(path=str(output/'desktop.png'))
+                page.locator('#filterEngine').select_option('h3-sol'); expect(page.locator('#emptyState')).to_contain_text('暂无符合条件')
+                page.locator('#filterEngine').select_option('all'); expect(page.locator('.model-card')).to_have_count(24)
+                page.locator('[data-action=dispatch]').first.click()
+                page.locator('#dispatchForm [name=project_id]').fill('demo'); page.locator('#dispatchForm [name=prompt]').fill('A browser test task')
+                page.locator('#openImport').click()
+                page.locator('#importForm [name=filename]').fill('reference.png')
+                page.locator('#importForm [name=source_url]').fill('https://assets.example.com/reference.png')
+                page.locator('#importForm [name=expected_sha256]').fill(hashlib.sha256(image.read_bytes()).hexdigest())
+                page.locator('#importForm button[type=submit]').click()
+                expect(page.locator('#importMessage')).to_contain_text('导入成功')
+                page.locator('[data-close=importModal]').click()
+                expect(page.locator('#referenceInput')).to_contain_text('')
+                assert page.locator('#referenceInput').input_value().startswith('image | art_')
+                page.locator('#submitTask').click(); expect(page.locator('#inspectorBody')).to_contain_text('A browser test task')
+                page.keyboard.press('Escape')
+                page.set_viewport_size({'width':390,'height':844})
+                page.evaluate('window.scrollTo({top:0,behavior:"instant"})')
+                page.screenshot(path=str(output/'mobile.png'))
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'Mobile horizontal overflow'
+                assert page.evaluate('localStorage.length === 0 && sessionStorage.length === 0'), 'Token must not be persisted'
+                page.locator('#tokenButton').click(); page.locator('#clearToken').click(); expect(page.locator('.model-card')).to_have_count(0)
+                assert not errors, errors
+                browser.close()
+            print('Browser integration passed: prefixed routes, auth, pagination, filters, views, previews, playback, submission, mobile, token cleanup')
+        finally:
+            server.should_exit = True; thread.join(timeout=10); sock.close()
+
+if __name__ == '__main__':
+    main()
