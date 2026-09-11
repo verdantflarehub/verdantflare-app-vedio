@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-ARG BASE_IMAGE=registry.cn-qingdao.aliyuncs.com/wod/verdantflare-app:video-minimax-h3-sglang-benchmark-v0.1.7
+ARG BASE_IMAGE=registry.cn-qingdao.aliyuncs.com/wod/verdantflare-app:vedio-minimax-h3-sglang-benchmark-v0.1.7
 FROM ${BASE_IMAGE}
 
 USER root
