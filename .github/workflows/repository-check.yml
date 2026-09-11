@@ -1,4 +1,4 @@
-name: Vedio Repository Checks
+name: Video Repository Checks
 on:
   push:
     branches: [dev, release]
@@ -17,10 +17,10 @@ jobs:
           test ! -d docs
           test ! -d deploy
           test ! -d deploys
-          test ! -d services/vedio-minimax-h3-lightx2v-benchmark
-          test ! -d services/vedio-minimax-h3-sglang-benchmark
-          test ! -f .github/workflows/vedio-minimax-h3-lightx2v-benchmark.yml
-          test ! -f .github/workflows/vedio-minimax-h3-sglang-benchmark.yml
+          test ! -d services/video-minimax-h3-lightx2v-benchmark
+          test ! -d services/video-minimax-h3-sglang-benchmark
+          test ! -f .github/workflows/video-minimax-h3-lightx2v-benchmark.yml
+          test ! -f .github/workflows/video-minimax-h3-sglang-benchmark.yml
           if git ls-files | grep -Ei '\.(mp4|mov|avi|mkv|webm|m4v|mpg|mpeg|wmv|flv|mp3|wav|flac|aac|m4a|ogg|opus|wma|aiff|safetensors|ckpt|pt|pth)$'; then
             echo 'Media and model weights must stay outside Git.' >&2
             exit 1

@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 VERSION = "0.4.1"
-MODELS = {"h3": ("H3", "vedio-minimax-h3-api"), "h3-sol": ("H3-Sol", "vedio-minimax-h3-sol-api")}
+MODELS = {"h3": ("H3", "video-minimax-h3-api"), "h3-sol": ("H3-Sol", "video-minimax-h3-sol-api")}
 FIELDS = {"DCGM_FI_DEV_GPU_UTIL": ("utilization_percent", 100, 1),
           "DCGM_FI_DEV_FB_USED": ("memory_used_gib", 1048576, 1024),
           "DCGM_FI_DEV_FB_FREE": ("memory_free_gib", 1048576, 1024),
@@ -77,7 +77,7 @@ def parse_metrics(text, allowed, now):
 
 class ClusterSource:
     def __init__(self):
-        self.namespace = "verdantflare-vedio"
+        self.namespace = "verdantflare-video"
         self.account = Path("/var/run/secrets/kubernetes.io/serviceaccount")
         self.metrics_urls = [v.strip() for v in os.environ.get("VIDEO_DCGM_URLS", "").split(",") if v.strip()][:16]
 

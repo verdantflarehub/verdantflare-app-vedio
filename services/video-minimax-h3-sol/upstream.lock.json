@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "service": "vedio-minimax-h3-sol",
+  "service": "video-minimax-h3-sol",
   "version": "0.1.0",
   "repository": "https://github.com/NVlabs/Sana.git",
   "revision": "2936c47637380842aaa4a4488fac5006cc542b70",

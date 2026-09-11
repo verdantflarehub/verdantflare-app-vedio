@@ -4,19 +4,19 @@ on:
   push:
     branches: [dev, release]
     paths:
-      - services/vedio-minimax-h3-sol/**
-      - .github/workflows/vedio-minimax-h3-sol.yml
+      - services/video-minimax-h3-sol/**
+      - .github/workflows/video-minimax-h3-sol.yml
   pull_request:
     paths:
-      - services/vedio-minimax-h3-sol/**
-      - .github/workflows/vedio-minimax-h3-sol.yml
+      - services/video-minimax-h3-sol/**
+      - .github/workflows/video-minimax-h3-sol.yml
 permissions:
   contents: read
 concurrency:
-  group: vedio-minimax-h3-sol-${{ github.ref }}
+  group: video-minimax-h3-sol-${{ github.ref }}
   cancel-in-progress: false
 env:
-  SERVICE: vedio-minimax-h3-sol
+  SERVICE: video-minimax-h3-sol
   VERSION: 0.2.0
 jobs:
   check:
@@ -27,7 +27,7 @@ jobs:
       - name: CPU contract and allocation tests
         env:
           PYTHONDONTWRITEBYTECODE: "1"
-          PYTHONPATH: services/vedio-minimax-h3-sol
+          PYTHONPATH: services/video-minimax-h3-sol
         run: |
           python3 -m unittest discover -s services/${SERVICE}/tests -v
           python3 -m compileall -q services/${SERVICE}

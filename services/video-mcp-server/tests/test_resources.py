@@ -10,7 +10,7 @@ GPU2 = 'GPU-22222222-2222-2222-2222-222222222222'
 
 
 def fixture():
-    deployment = {'metadata': {'name': 'vedio-minimax-h3-api', 'uid': 'deployment-1'}, 'spec': {'replicas': 2}}
+    deployment = {'metadata': {'name': 'video-minimax-h3-api', 'uid': 'deployment-1'}, 'spec': {'replicas': 2}}
     rs = {'metadata': {'uid': 'rs-1', 'ownerReferences': [{'kind': 'Deployment', 'uid': 'deployment-1', 'controller': True}]}}
     pod = {'metadata': {'name': 'h3-instance', 'uid': 'pod-1', 'ownerReferences': [{'kind': 'ReplicaSet', 'uid': 'rs-1', 'controller': True}],
                         'annotations': {'hami.io/vgpu-devices-allocated': f'{GPU1},NVIDIA,24564,0:{GPU2},NVIDIA,24564,0:;'}},

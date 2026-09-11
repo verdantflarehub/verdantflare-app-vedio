@@ -3,7 +3,7 @@ FROM nvcr.io/nvidia/cuda:13.0.2-devel-ubuntu24.04@sha256:0eee3094c71518ad31d011a
 
 LABEL org.opencontainers.image.title="VerdantFlare MiniMax H3 Sol" \
       org.opencontainers.image.version="0.1.1" \
-      org.opencontainers.image.source="https://github.com/verdantflarehub/verdantflare-app-vedio" \
+      org.opencontainers.image.source="https://github.com/verdantflarehub/verdantflare-app-video" \
       org.opencontainers.image.licenses="Apache-2.0 AND LicenseRef-MiniMax-H3-Community"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,8 +29,8 @@ RUN git init /opt/sana \
     && cp -a /opt/sana/models/minimax_h3/Sol-H3 /opt/sol-h3 \
     && rm -rf /opt/sana
 COPY . ./
-RUN mkdir -p /usr/share/licenses/vedio-minimax-h3-sol \
-    && cp LICENSE.upstream NOTICE.upstream.md /usr/share/licenses/vedio-minimax-h3-sol/
+RUN mkdir -p /usr/share/licenses/video-minimax-h3-sol \
+    && cp LICENSE.upstream NOTICE.upstream.md /usr/share/licenses/video-minimax-h3-sol/
 RUN python verify-source.py /opt/sol-h3 \
     && python prepare-patched-source.py --source /opt/sol-h3 --output /opt/sol-h3-experimental \
     && python -m unittest discover -s tests -v \

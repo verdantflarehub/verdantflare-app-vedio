@@ -1,16 +1,16 @@
 # H3-Sol 常驻服务与实验工程
 
-当前常驻镜像版本为 **`vedio-minimax-h3-sol-v0.2.0`**，入口 `resident_worker.py` 通过一个 torchrun 启动两个长期存活的 rank，串行处理持久化队列并复用 engine。构建使用 `Dockerfile.resident`，继承 v0.1.1 的固定 digest；默认源代码 Dockerfile 保留用于重建基础实验包，不覆盖历史版本。
+当前常驻镜像版本为 **`video-minimax-h3-sol-v0.2.0`**，入口 `resident_worker.py` 通过一个 torchrun 启动两个长期存活的 rank，串行处理持久化队列并复用 engine。构建使用 `Dockerfile.resident`，继承 v0.1.1 的固定 digest；默认源代码 Dockerfile 保留用于重建基础实验包，不覆盖历史版本。
 
-内部健康与任务接口、部署资源、MCP 路由和验收口径见[中央常驻服务方案](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/vedio/minimax-h3/minimax-h3-sol-service.md)。模型加载完成才就绪；首次真实输入仍需预热。只有相同 Prompt、参考内容及 duration 才复用预热命中；其他请求保守重新预热，但不重新加载模型。运行中取消不支持，内部 DELETE 只接受排队任务。
+内部健康与任务接口、部署资源、MCP 路由和验收口径见[中央常驻服务方案](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/video/minimax-h3/minimax-h3-sol-service.md)。模型加载完成才就绪；首次真实输入仍需预热。只有相同 Prompt、参考内容及 duration 才复用预热命中；其他请求保守重新预热，但不重新加载模型。运行中取消不支持，内部 DELETE 只接受排队任务。
 
 `resident_api.py` 提供受保护的 HTTP 接口、SQLite 持久队列和恢复语义；`resident_worker.py` 负责双卡核验、模型哈希、分布式常驻推理与产物校验。模型和产物由中央 PVC 提供，不打进镜像。依赖与封存源码来自以下历史基础包说明。许可证 FAQ 的既有辅助缺项仍显式记录，真实创作质量仍待人工验收。
 
 ## v0.1.1 历史基础包
 
-本次源码与镜像版本为 **`vedio-minimax-h3-sol-v0.1.1`**，由 `.github/workflows/vedio-minimax-h3-sol.yml` 在 `release` 分支构建发布。已有 `v0.1.0` 是历史实验镜像，不覆盖。
+本次源码与镜像版本为 **`video-minimax-h3-sol-v0.1.1`**，由 `.github/workflows/video-minimax-h3-sol.yml` 在 `release` 分支构建发布。已有 `v0.1.0` 是历史实验镜像，不覆盖。
 
-封装 NVIDIA 官方 Sol-H3、锁定依赖、四项 CPU offload / 竖屏补丁，以及后续实验脚本。历史双 RTX 4090 已跑通 B01 视频，但人工质量门未通过；历史正式 runner 的 4090 profile 仍为 blocked；v0.2.0 的独立常驻入口显式使用封存实验适配，不修改历史 runner 门禁。完整历史与缺项见[中央方案](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/vedio/minimax-h3/minimax-h3-sol.md)。
+封装 NVIDIA 官方 Sol-H3、锁定依赖、四项 CPU offload / 竖屏补丁，以及后续实验脚本。历史双 RTX 4090 已跑通 B01 视频，但人工质量门未通过；历史正式 runner 的 4090 profile 仍为 blocked；v0.2.0 的独立常驻入口显式使用封存实验适配，不修改历史 runner 门禁。完整历史与缺项见[中央方案](https://github.com/verdantflarehub/verdantflare-design/blob/dev/docs/design/app/video/minimax-h3/minimax-h3-sol.md)。
 
 ## 镜像内的可追溯源码
 
@@ -26,9 +26,9 @@
 ## 本地与 CI 验证
 
 ```bash
-python3 -m unittest discover -s services/vedio-minimax-h3-sol/tests -v
-python3 services/vedio-minimax-h3-sol/verify-source.py /path/to/sealed/Sol-H3
-python3 services/vedio-minimax-h3-sol/prepare-patched-source.py \
+python3 -m unittest discover -s services/video-minimax-h3-sol/tests -v
+python3 services/video-minimax-h3-sol/verify-source.py /path/to/sealed/Sol-H3
+python3 services/video-minimax-h3-sol/prepare-patched-source.py \
   --source /path/to/sealed/Sol-H3 --output /path/to/new/experimental-Sol-H3
 ```
 

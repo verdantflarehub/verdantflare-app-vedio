@@ -1,4 +1,4 @@
-# vedio-minimax-h3-api
+# video-minimax-h3-api
 
 Production MiniMax H3 Base Ref2VA inference for the VerdantFlare video
 workflow. The service exposes SGLang's asynchronous OpenAI-compatible
@@ -8,7 +8,7 @@ workflow. The service exposes SGLang's asynchronous OpenAI-compatible
 
 | Component | Version |
 | --- | --- |
-| Service image | `vedio-minimax-h3-api-v0.3.0` |
+| Service image | `video-minimax-h3-api-v0.3.0` |
 | SGLang | `bbbcbf9418f0d8fbea968d96f3b470f5b883bac3` |
 | comfy-kitchen | `0.2.31` |
 | FlashInfer Python/cubin | `0.6.17` |
@@ -51,7 +51,7 @@ Run the technical smoke test after the server becomes healthy:
 
 ```bash
 H3_BASE_URL=http://127.0.0.1:8000 \
-  services/vedio-minimax-h3-api/smoke-test.sh
+  services/video-minimax-h3-api/smoke-test.sh
 ```
 
 The smoke request sets `num_inference_steps` to `21`, which is 21 sigma points

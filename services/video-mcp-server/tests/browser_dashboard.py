@@ -104,7 +104,7 @@ def main():
                 expect(page.locator('#resultActions a')).to_have_attribute('download','fixture.mp4')
                 page.keyboard.press('Escape'); page.locator('#searchInput').fill(''); expect(page.locator('#taskRows tr')).to_have_count(24)
                 page.locator('#btnViewGallery').click()
-                output = Path(os.environ.get('BROWSER_OUTPUT_DIR','/tmp/vedio-dashboard-browser')); output.mkdir(parents=True, exist_ok=True)
+                output = Path(os.environ.get('BROWSER_OUTPUT_DIR','/tmp/video-dashboard-browser')); output.mkdir(parents=True, exist_ok=True)
                 page.evaluate('window.scrollTo({top:0,behavior:"instant"})')
                 page.screenshot(path=str(output/'desktop.png'))
                 page.locator('#filterEngine').select_option('h3-sol'); expect(page.locator('#emptyState')).to_contain_text('暂无符合条件')

@@ -1,46 +1,41 @@
-name: Video MCP Server
+name: Video MiniMax H3 API
 
 on:
   push:
     branches: [release]
     paths:
-      - services/vedio-mcp-server/**
-      - .github/workflows/vedio-mcp-server.yml
+      - services/video-minimax-h3-api/**
+      - .github/workflows/video-minimax-h3-api.yml
+
 permissions:
   contents: read
+
 concurrency:
-  group: vedio-mcp-server-release
+  group: video-minimax-h3-api-release
   cancel-in-progress: false
+
 env:
-  SERVICE: vedio-mcp-server
-  VERSION: 0.4.1
+  SERVICE: video-minimax-h3-api
+  VERSION: 0.3.0
+
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Run unit tests
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-          PYTHONPATH: services/vedio-mcp-server
+      - name: Check shell scripts
         run: |
-          python3 -m pip install -r services/${SERVICE}/requirements.txt
-          python3 -m unittest discover -s services/${SERVICE}/tests -v
-          node --check services/${SERVICE}/verdantflare_video_mcp/static/dashboard.js
-          node --check services/${SERVICE}/verdantflare_video_mcp/static/resources.js
-      - name: Browser integration
-        env:
-          PYTHONPATH: services/vedio-mcp-server
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          python3 -m pip install playwright==1.62.0
-          python3 -m playwright install --with-deps chromium
-          python3 services/${SERVICE}/tests/browser_dashboard.py
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+            shellcheck "$script"
+          done < <(find "services/${SERVICE}" -type f -name '*.sh' -print0)
+
   build:
     needs: check
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -59,7 +54,10 @@ jobs:
           registry: ${{ steps.image.outputs.registry_endpoint }}
           username: ${{ secrets.REGISTRY_USER_ALIYUN }}
           password: ${{ secrets.REGISTRY_PASSWORD_ALIYUN }}
-      - run: '! docker buildx imagetools inspect "${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}" >/dev/null 2>&1'
+      - name: Verify version is unpublished
+        run: |
+          image="${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}"
+          ! docker buildx imagetools inspect "$image" >/dev/null 2>&1
       - uses: docker/build-push-action@v6
         with:
           context: services/${{ env.SERVICE }}
@@ -68,3 +66,5 @@ jobs:
           provenance: false
           sbom: false
           tags: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}
+          cache-from: type=gha,scope=${{ env.SERVICE }}
+          cache-to: type=gha,mode=max,scope=${{ env.SERVICE }}

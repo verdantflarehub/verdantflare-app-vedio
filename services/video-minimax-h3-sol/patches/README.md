@@ -15,7 +15,7 @@
 `series.json` 记录上游 revision、补丁 SHA-256、目标文件 before/after SHA-256。主机需安装 `patch`；从应用仓库根目录执行：
 
 ```bash
-python3 services/vedio-minimax-h3-sol/prepare-patched-source.py \
+python3 services/video-minimax-h3-sol/prepare-patched-source.py \
   --source /path/to/sealed/Sol-H3 \
   --output /path/to/new/experimental-Sol-H3
 ```
@@ -30,7 +30,7 @@ python3 services/vedio-minimax-h3-sol/prepare-patched-source.py \
 - 测试镜像为已有 H3 v0.3.0，Torch 2.13.0+cu130。Sol 固定依赖 Torch 2.10.0+cu130 尚未进行同样 GPU 回归；该差异是后续接入门槛。
 - 19 项原契约测试仍通过。完整 72 文件来源复制、补丁应用、输出封存与已有目录拒绝覆盖已实际检查。
 
-GPU 测试脚本位于 `../gpu_tests/`。中央 Job 和不可变 ConfigMap 清单位于设计仓库的 `deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare-vedio/sol-h3/`，证据位于同模块 `operations/2026-09-09-sol-lora-*.json`。这些组件样本不构成视频输入、生成结果或人工质量验收。
+GPU 测试脚本位于 `../gpu_tests/`。中央 Job 和不可变 ConfigMap 清单位于设计仓库的 `deploys/k8s.cn-chengdu.bc-cloud.com/verdantflare-video/sol-h3/`，证据位于同模块 `operations/2026-09-09-sol-lora-*.json`。这些组件样本不构成视频输入、生成结果或人工质量验收。
 
 ## 0002：AdaLN 逐块预计算后安装卸载钩子
 
